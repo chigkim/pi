@@ -43,6 +43,7 @@ import { SettingsManager } from "./core/settings-manager.ts";
 import { printTimings, resetTimings, time } from "./core/timings.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
+import { setScreenReaderMode } from "./modes/interactive/accessibility.ts";
 import { ExtensionSelectorComponent } from "./modes/interactive/components/extension-selector.ts";
 import { initTheme, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
 import { handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
@@ -443,6 +444,7 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 
 	const parsed = parseArgs(args);
+	setScreenReaderMode(parsed.screenReader);
 	if (parsed.diagnostics.length > 0) {
 		for (const d of parsed.diagnostics) {
 			const color = d.type === "error" ? chalk.red : chalk.yellow;
@@ -461,6 +463,9 @@ export async function main(args: string[], options?: MainOptions) {
 
 	if (parsed.version) {
 		console.log(VERSION);
+		if (parsed.screenReader) {
+			console.log("Screen reader mode");
+		}
 		process.exit(0);
 	}
 
@@ -687,6 +692,7 @@ export async function main(args: string[], options?: MainOptions) {
 			initialImages,
 			initialMessages: parsed.messages,
 			verbose: parsed.verbose,
+			screenReader: parsed.screenReader,
 		});
 		if (startupBenchmark) {
 			await interactiveMode.init();

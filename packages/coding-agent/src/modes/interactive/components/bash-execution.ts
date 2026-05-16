@@ -10,6 +10,7 @@ import {
 	truncateTail,
 } from "../../../core/tools/truncate.ts";
 import { stripAnsi } from "../../../utils/ansi.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, keyText } from "./keybinding-hints.ts";
@@ -57,6 +58,7 @@ export class BashExecutionComponent extends Container {
 			(spinner) => theme.fg(colorKey, spinner),
 			(text) => theme.fg("muted", text),
 			`Running... (${keyText("tui.select.cancel")} to cancel)`, // Plain text for loader
+			isFlatScreenReaderMode() ? { frames: [] } : undefined,
 		);
 		this.contentContainer.addChild(this.loader);
 

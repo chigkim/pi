@@ -14,6 +14,7 @@ import { getCustomThemesDir, getThemesDir } from "../../../config.ts";
 import type { SourceInfo } from "../../../core/source-info.ts";
 import { closeWatcher, watchWithErrorHandler } from "../../../utils/fs-watch.ts";
 import { highlight, supportsLanguage } from "../../../utils/syntax-highlight.ts";
+import { getSelectionPrefix } from "../accessibility.ts";
 
 // ============================================================================
 // Types & Schema
@@ -1201,7 +1202,7 @@ export function getMarkdownTheme(): MarkdownTheme {
 
 export function getSelectListTheme(): SelectListTheme {
 	return {
-		selectedPrefix: (text: string) => theme.fg("accent", text),
+		selectedPrefix: (_text: string) => theme.fg("accent", getSelectionPrefix()),
 		selectedText: (text: string) => theme.fg("accent", text),
 		description: (text: string) => theme.fg("muted", text),
 		scrollInfo: (text: string) => theme.fg("muted", text),
@@ -1221,7 +1222,7 @@ export function getSettingsListTheme(): SettingsListTheme {
 		label: (text: string, selected: boolean) => (selected ? theme.fg("accent", text) : text),
 		value: (text: string, selected: boolean) => (selected ? theme.fg("accent", text) : theme.fg("muted", text)),
 		description: (text: string) => theme.fg("dim", text),
-		cursor: theme.fg("accent", "→ "),
+		cursor: theme.fg("accent", getSelectionPrefix()),
 		hint: (text: string) => theme.fg("dim", text),
 	};
 }

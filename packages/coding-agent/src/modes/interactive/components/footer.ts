@@ -1,6 +1,7 @@
 import { type Component, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 
 /**
@@ -111,11 +112,19 @@ export class FooterComponent implements Component {
 		}
 
 		// Build stats line
+		const flatScreenReaderMode = isFlatScreenReaderMode();
 		const statsParts = [];
-		if (totalInput) statsParts.push(`↑${formatTokens(totalInput)}`);
-		if (totalOutput) statsParts.push(`↓${formatTokens(totalOutput)}`);
-		if (totalCacheRead) statsParts.push(`R${formatTokens(totalCacheRead)}`);
-		if (totalCacheWrite) statsParts.push(`W${formatTokens(totalCacheWrite)}`);
+		if (flatScreenReaderMode) {
+			if (totalInput) statsParts.push(`I${formatTokens(totalInput)}`);
+			if (totalOutput) statsParts.push(`O${formatTokens(totalOutput)}`);
+			if (totalCacheRead) statsParts.push(`R${formatTokens(totalCacheRead)}`);
+			if (totalCacheWrite) statsParts.push(`W${formatTokens(totalCacheWrite)}`);
+		} else {
+			if (totalInput) statsParts.push(`↑${formatTokens(totalInput)}`);
+			if (totalOutput) statsParts.push(`↓${formatTokens(totalOutput)}`);
+			if (totalCacheRead) statsParts.push(`R${formatTokens(totalCacheRead)}`);
+			if (totalCacheWrite) statsParts.push(`W${formatTokens(totalCacheWrite)}`);
+		}
 
 		// Show cost with "(sub)" indicator if using OAuth subscription
 		const usingSubscription = state.model ? this.session.modelRegistry.isUsingOAuth(state.model) : false;

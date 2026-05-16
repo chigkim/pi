@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-tui";
 import type { ModelRegistry } from "../../../core/model-registry.ts";
 import type { SettingsManager } from "../../../core/settings-manager.ts";
+import { getSelectionPrefix } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint } from "./keybinding-hints.ts";
@@ -247,7 +248,7 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
 			let line = "";
 			if (isSelected) {
-				const prefix = theme.fg("accent", "→ ");
+				const prefix = theme.fg("accent", getSelectionPrefix());
 				const modelText = `${item.id}`;
 				const providerBadge = theme.fg("muted", `[${item.provider}]`);
 				const checkmark = isCurrent ? theme.fg("success", " ✓") : "";
