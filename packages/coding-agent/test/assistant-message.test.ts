@@ -1,4 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, test } from "vitest";
 import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.ts";
@@ -80,9 +81,25 @@ describe("AssistantMessageComponent", () => {
 		).render(20);
 
 		expect(lines).toEqual([
-			`${OSC133_ZONE_START}Assistant: one two three four `,
+			`${OSC133_ZONE_START}Assistant: one two three four`,
 			" five six seven     ",
 			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL} eight nine ten`,
 		]);
+	});
+
+	test("keeps merged screen reader assistant label within width when more content follows", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "Considering package installation issues" },
+				{ type: "text", text: "I" },
+			]),
+		).render(80);
+
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(80);
+		}
 	});
 });

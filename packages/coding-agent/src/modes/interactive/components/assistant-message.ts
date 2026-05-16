@@ -73,7 +73,7 @@ export class AssistantMessageComponent extends Container {
 				const hasAssistantLabel = lines[0].trimEnd() === "Assistant:";
 				const firstResponseLine = hasAssistantLabel ? 1 : 0;
 				if (firstResponseLine < lines.length) {
-					lines[firstResponseLine] = lines[firstResponseLine].trimStart();
+					lines[firstResponseLine] = lines[firstResponseLine].trimStart().trimEnd();
 					lines[lines.length - 1] = lines[lines.length - 1].trimEnd();
 					if (hasAssistantLabel) {
 						lines.splice(0, 2, `Assistant: ${lines[firstResponseLine]}`);
