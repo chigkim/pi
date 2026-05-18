@@ -9,7 +9,14 @@ import { performance } from "node:perf_hooks";
 import { isKeyRelease, matchesKey } from "./keys.ts";
 import type { Terminal } from "./terminal.ts";
 import { deleteKittyImage, getCapabilities, isImageLine, setCellDimensions } from "./terminal-image.ts";
-import { extractSegments, normalizeTerminalOutput, sliceByColumn, sliceWithWidth, visibleWidth } from "./utils.ts";
+import {
+	extractAnsiCode,
+	extractSegments,
+	normalizeTerminalOutput,
+	sliceByColumn,
+	sliceWithWidth,
+	visibleWidth,
+} from "./utils.ts";
 
 const KITTY_SEQUENCE_PREFIX = "\x1b_G";
 
@@ -255,6 +262,7 @@ export class TUI extends Container {
 	private hardwareCursorRow = 0; // Actual terminal cursor row (may differ due to IME positioning)
 	private showHardwareCursor = process.env.PI_HARDWARE_CURSOR === "1";
 	private clearOnShrink = process.env.PI_CLEAR_ON_SHRINK === "1"; // Clear empty rows when content shrinks (default: off)
+	private trimTrailingWhitespace = false;
 	private maxLinesRendered = 0; // Track terminal's working area (max lines ever rendered)
 	private previousViewportTop = 0; // Track previous viewport top for resize-aware cursor moves
 	private fullRedrawCount = 0;
@@ -306,6 +314,55 @@ export class TUI extends Container {
 	 */
 	setClearOnShrink(enabled: boolean): void {
 		this.clearOnShrink = enabled;
+	}
+
+	getTrimTrailingWhitespace(): boolean {
+		return this.trimTrailingWhitespace;
+	}
+
+	setTrimTrailingWhitespace(enabled: boolean): void {
+		if (this.trimTrailingWhitespace === enabled) return;
+		this.trimTrailingWhitespace = enabled;
+		this.requestRender();
+	}
+
+	override render(width: number): string[] {
+		const lines = super.render(width);
+		if (!this.trimTrailingWhitespace) {
+			return lines;
+		}
+		return lines.map((line) => this.trimLineTrailingWhitespace(line));
+	}
+
+	private trimLineTrailingWhitespace(line: string): string {
+		let remaining = line;
+		let suffix = "";
+		while (remaining.length > 0) {
+			const trimmed = remaining.replace(/[ \t]+$/g, "");
+			if (trimmed.length !== remaining.length) {
+				remaining = trimmed;
+				continue;
+			}
+
+			let trailingAnsi: { index: number; code: string } | undefined;
+			for (let i = 0; i < remaining.length; ) {
+				const ansi = extractAnsiCode(remaining, i);
+				if (ansi) {
+					if (i + ansi.length === remaining.length) {
+						trailingAnsi = { index: i, code: ansi.code };
+					}
+					i += ansi.length;
+				} else {
+					i++;
+				}
+			}
+			if (!trailingAnsi) {
+				break;
+			}
+			remaining = remaining.slice(0, trailingAnsi.index);
+			suffix = trailingAnsi.code + suffix;
+		}
+		return remaining + suffix;
 	}
 
 	setFocus(component: Component | null): void {

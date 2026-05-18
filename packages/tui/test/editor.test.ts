@@ -594,13 +594,18 @@ describe("Editor component", () => {
 	});
 
 	describe("Rendering options", () => {
-		it("omits decorative prompt borders when disabled", () => {
+		it("omits decorative prompt borders and right padding when disabled", () => {
 			const editor = new Editor(createTestTUI(), defaultEditorTheme, { showBorders: false });
-			const lines = editor.render(20);
+			let lines = editor.render(20);
 
-			assert.strictEqual(lines.length, 1);
+			assert.deepStrictEqual(lines, [""]);
+
+			editor.setText("hello");
+			lines = editor.render(20);
+
+			assert.deepStrictEqual(lines, ["hello"]);
 			assert.ok(!lines.some((line) => line.includes("─")));
-			assert.strictEqual(visibleWidth(lines[0]!), 20);
+			assert.strictEqual(visibleWidth(lines[0]!), 5);
 		});
 	});
 

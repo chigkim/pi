@@ -64,6 +64,20 @@ function getCellItalic(terminal: VirtualTerminal, row: number, col: number): num
 	return cell.isItalic();
 }
 
+describe("TUI render options", () => {
+	it("trims trailing whitespace while preserving trailing ANSI codes when enabled", () => {
+		const terminal = new VirtualTerminal(40, 10);
+		const tui = new TUI(terminal);
+		const component = new TestComponent();
+		component.lines = ["plain   ", "\x1b[2mstyled\x1b[0m   ", "colored spaces   \x1b[0m"];
+		tui.addChild(component);
+
+		tui.setTrimTrailingWhitespace(true);
+
+		assert.deepStrictEqual(tui.render(40), ["plain", "\x1b[2mstyled\x1b[0m", "colored spaces\x1b[0m"]);
+	});
+});
+
 describe("TUI Kitty image cleanup", () => {
 	it("deletes changed image ids before drawing moved placements", async () => {
 		const terminal = new LoggingVirtualTerminal(40, 10);

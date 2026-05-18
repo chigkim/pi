@@ -69,17 +69,17 @@ export class AssistantMessageComponent extends Container {
 			while (lines.length > 0 && lines[lines.length - 1].trim() === "") {
 				lines.pop();
 			}
+			for (let i = 0; i < lines.length; i++) {
+				lines[i] = lines[i].trim() === "" ? "" : lines[i].trimEnd();
+			}
 			if (lines.length > 0) {
-				const hasAssistantLabel = lines[0].trimEnd() === "Assistant:";
+				const hasAssistantLabel = lines[0] === "Assistant:";
 				const firstResponseLine = hasAssistantLabel ? 1 : 0;
 				if (firstResponseLine < lines.length) {
-					lines[firstResponseLine] = lines[firstResponseLine].trimStart().trimEnd();
-					lines[lines.length - 1] = lines[lines.length - 1].trimEnd();
+					lines[firstResponseLine] = lines[firstResponseLine].trimStart();
 					if (hasAssistantLabel) {
 						lines.splice(0, 2, `Assistant: ${lines[firstResponseLine]}`);
 					}
-				} else if (hasAssistantLabel) {
-					lines[0] = lines[0].trimEnd();
 				}
 			}
 		}
@@ -103,7 +103,7 @@ export class AssistantMessageComponent extends Container {
 		);
 
 		const flatScreenReaderMode = isFlatScreenReaderMode();
-		const horizontalPadding = 1;
+		const horizontalPadding = flatScreenReaderMode ? 0 : 1;
 
 		if (hasVisibleContent) {
 			if (!flatScreenReaderMode) {

@@ -472,6 +472,7 @@ export class Editor implements Component, Focusable {
 		// Render each visible layout line
 		// Emit hardware cursor marker only when focused and not showing autocomplete
 		const emitCursorMarker = this.focused && !this.autocompleteState;
+		const fillWidth = this.showBorders;
 
 		for (const layoutLine of visibleLines) {
 			let displayText = layoutLine.text;
@@ -486,7 +487,9 @@ export class Editor implements Component, Focusable {
 				// Hardware cursor marker (zero-width, emitted before fake cursor for IME positioning)
 				const marker = emitCursorMarker ? CURSOR_MARKER : "";
 
-				if (after.length > 0) {
+				if (!this.showBorders) {
+					displayText = before + marker + after;
+				} else if (after.length > 0) {
 					// Cursor is on a character (grapheme) - replace it with highlighted version
 					// Get the first grapheme from 'after'
 					const afterGraphemes = [...this.segment(after)];
@@ -508,8 +511,8 @@ export class Editor implements Component, Focusable {
 			}
 
 			// Calculate padding based on actual visible width
-			const padding = " ".repeat(Math.max(0, contentWidth - lineVisibleWidth));
-			const lineRightPadding = cursorInPadding ? rightPadding.slice(1) : rightPadding;
+			const padding = fillWidth ? " ".repeat(Math.max(0, contentWidth - lineVisibleWidth)) : "";
+			const lineRightPadding = fillWidth ? (cursorInPadding ? rightPadding.slice(1) : rightPadding) : "";
 
 			// Render the line (no side borders, just horizontal lines above and below)
 			result.push(`${leftPadding}${displayText}${padding}${lineRightPadding}`);
@@ -534,8 +537,9 @@ export class Editor implements Component, Focusable {
 			const autocompleteResult = this.autocompleteList.render(contentWidth);
 			for (const line of autocompleteResult) {
 				const lineWidth = visibleWidth(line);
-				const linePadding = " ".repeat(Math.max(0, contentWidth - lineWidth));
-				result.push(`${leftPadding}${line}${linePadding}${rightPadding}`);
+				const linePadding = fillWidth ? " ".repeat(Math.max(0, contentWidth - lineWidth)) : "";
+				const autocompleteRightPadding = fillWidth ? rightPadding : "";
+				result.push(`${leftPadding}${line}${linePadding}${autocompleteRightPadding}`);
 			}
 		}
 

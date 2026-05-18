@@ -72,7 +72,7 @@ describe("AssistantMessageComponent", () => {
 		expect(lines).toEqual([`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}${OSC133_ZONE_START}Assistant: hello`]);
 	});
 
-	test("does not trim middle response lines in screen reader mode", () => {
+	test("removes automatic padding from response lines in screen reader mode", () => {
 		initTheme("dark");
 		setScreenReaderMode("flat");
 
@@ -82,8 +82,8 @@ describe("AssistantMessageComponent", () => {
 
 		expect(lines).toEqual([
 			`${OSC133_ZONE_START}Assistant: one two three four`,
-			" five six seven     ",
-			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL} eight nine ten`,
+			"five six seven eight",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}nine ten`,
 		]);
 	});
 
@@ -101,5 +101,20 @@ describe("AssistantMessageComponent", () => {
 		for (const line of lines) {
 			expect(visibleWidth(line)).toBeLessThanOrEqual(80);
 		}
+	});
+
+	test("renders screen reader blank lines as empty strings", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "first\n\nsecond" }]),
+		).render(40);
+
+		expect(lines).toEqual([
+			`${OSC133_ZONE_START}Assistant: first`,
+			"",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}second`,
+		]);
 	});
 });
