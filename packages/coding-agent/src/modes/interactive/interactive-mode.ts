@@ -1697,7 +1697,7 @@ export class InteractiveMode {
 	}
 
 	private getLoaderIndicator(indicator?: LoaderIndicatorOptions): LoaderIndicatorOptions | undefined {
-		return isFlatScreenReaderMode() ? { frames: [] } : indicator;
+		return isFlatScreenReaderMode() ? { frames: [], paddingX: 0 } : indicator;
 	}
 
 	private createWorkingLoader(): Loader {
