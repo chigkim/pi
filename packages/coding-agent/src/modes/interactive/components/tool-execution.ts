@@ -228,7 +228,10 @@ export class ToolExecutionComponent extends Container {
 		if (!isFlatScreenReaderMode()) {
 			return lines;
 		}
-		return mergeScreenReaderLabelWithBody(lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)));
+		return mergeScreenReaderLabelWithBody(
+			lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)),
+			width,
+		);
 	}
 
 	private updateDisplay(): void {

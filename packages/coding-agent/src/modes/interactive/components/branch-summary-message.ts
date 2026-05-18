@@ -32,7 +32,7 @@ export class BranchSummaryMessageComponent extends Box {
 	}
 
 	override render(width: number): string[] {
-		return mergeScreenReaderLabelWithBody(super.render(width));
+		return mergeScreenReaderLabelWithBody(super.render(width), width);
 	}
 
 	private updateDisplay(): void {

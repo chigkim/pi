@@ -50,7 +50,7 @@ export class CustomMessageComponent extends Container {
 	}
 
 	override render(width: number): string[] {
-		return mergeScreenReaderLabelWithBody(super.render(width));
+		return mergeScreenReaderLabelWithBody(super.render(width), width);
 	}
 
 	private rebuild(): void {

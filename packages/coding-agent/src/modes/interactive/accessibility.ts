@@ -1,3 +1,4 @@
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { stripAnsi } from "../../utils/ansi.ts";
 
 export type ScreenReaderMode = "flat";
@@ -20,7 +21,7 @@ export function getSelectionPrefix(): string {
 	return isFlatScreenReaderMode() ? "> " : "→ ";
 }
 
-export function mergeScreenReaderLabelWithBody(lines: string[]): string[] {
+export function mergeScreenReaderLabelWithBody(lines: string[], width?: number): string[] {
 	if (!isFlatScreenReaderMode()) {
 		return lines;
 	}
@@ -35,9 +36,8 @@ export function mergeScreenReaderLabelWithBody(lines: string[]): string[] {
 		return lines;
 	}
 
-	return [
-		...lines.slice(0, labelIndex),
-		`${lines[labelIndex]!.trimEnd()} ${lines[bodyIndex]!.trimStart()}`,
-		...lines.slice(bodyIndex + 1),
-	];
+	const mergedLine = `${stripAnsi(lines[labelIndex]!).trimEnd()} ${stripAnsi(lines[bodyIndex]!).trim()}`;
+	const line =
+		width !== undefined && visibleWidth(mergedLine) > width ? truncateToWidth(mergedLine, width, "") : mergedLine;
+	return [...lines.slice(0, labelIndex), line, ...lines.slice(bodyIndex + 1)];
 }

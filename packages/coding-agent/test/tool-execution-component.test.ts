@@ -1,12 +1,14 @@
 import { join, resolve } from "node:path";
-import { Text, type TUI } from "@earendil-works/pi-tui";
+import { Text, type TUI, visibleWidth } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { beforeAll, describe, expect, test } from "vitest";
+import { afterEach, beforeAll, describe, expect, test } from "vitest";
 import { getReadmePath } from "../src/config.ts";
 import type { ToolDefinition } from "../src/core/extensions/types.ts";
 import { type BashOperations, createBashToolDefinition } from "../src/core/tools/bash.ts";
 import { createReadTool, createReadToolDefinition } from "../src/core/tools/read.ts";
 import { createWriteToolDefinition } from "../src/core/tools/write.ts";
+import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
+import { BashExecutionComponent } from "../src/modes/interactive/components/bash-execution.ts";
 import { ToolExecutionComponent } from "../src/modes/interactive/components/tool-execution.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
@@ -33,6 +35,10 @@ function createFakeTui(): TUI {
 describe("ToolExecutionComponent parity", () => {
 	beforeAll(() => {
 		initTheme("dark");
+	});
+
+	afterEach(() => {
+		setScreenReaderMode(undefined);
 	});
 
 	test("stacks custom call and result renderers like the old implementation", () => {
@@ -65,6 +71,41 @@ describe("ToolExecutionComponent parity", () => {
 		const rendered = stripAnsi(component.render(120).join("\n"));
 		expect(rendered).toContain("custom call");
 		expect(rendered).toContain("custom result");
+	});
+
+	test("keeps flat screen reader tool rows within terminal width", () => {
+		setScreenReaderMode("flat");
+		const toolDefinition: ToolDefinition = {
+			...createBaseToolDefinition(),
+			renderCall: () => new Text("$ ...", 0, 0),
+		};
+
+		const component = new ToolExecutionComponent(
+			"custom_tool",
+			"tool-flat-1",
+			{},
+			{},
+			toolDefinition,
+			createFakeTui(),
+			process.cwd(),
+		);
+		const lines = component.render(120);
+
+		expect(lines.some((line) => stripAnsi(line).includes("Tool: $ ..."))).toBe(true);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(120);
+		}
+	});
+
+	test("keeps flat screen reader bash rows within terminal width", () => {
+		setScreenReaderMode("flat");
+		const component = new BashExecutionComponent("echo hello", createFakeTui());
+		const lines = component.render(120);
+
+		expect(lines.some((line) => stripAnsi(line).includes("Bash: $ echo hello"))).toBe(true);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(120);
+		}
 	});
 
 	test("uses built-in rendering for built-in overrides without custom renderers", () => {

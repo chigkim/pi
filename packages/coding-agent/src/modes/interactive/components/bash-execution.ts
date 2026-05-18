@@ -81,7 +81,7 @@ export class BashExecutionComponent extends Container {
 	}
 
 	override render(width: number): string[] {
-		return mergeScreenReaderLabelWithBody(super.render(width));
+		return mergeScreenReaderLabelWithBody(super.render(width), width);
 	}
 
 	override invalidate(): void {
