@@ -1,5 +1,6 @@
 import { Box, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import type { CompactionSummaryMessage } from "../../../core/messages.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";
 
@@ -13,7 +14,8 @@ export class CompactionSummaryMessageComponent extends Box {
 	private markdownTheme: MarkdownTheme;
 
 	constructor(message: CompactionSummaryMessage, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
-		super(1, 1, (t) => theme.bg("customMessageBg", t));
+		const padding = isFlatScreenReaderMode() ? 0 : 1;
+		super(padding, padding, (t) => theme.bg("customMessageBg", t));
 		this.message = message;
 		this.markdownTheme = markdownTheme;
 		this.updateDisplay();
@@ -29,11 +31,16 @@ export class CompactionSummaryMessageComponent extends Box {
 		this.updateDisplay();
 	}
 
+	override render(width: number): string[] {
+		return mergeScreenReaderLabelWithBody(super.render(width));
+	}
+
 	private updateDisplay(): void {
 		this.clear();
 
 		const tokenStr = this.message.tokensBefore.toLocaleString();
-		const label = theme.fg("customMessageLabel", `\x1b[1m[compaction]\x1b[22m`);
+		const labelText = isFlatScreenReaderMode() ? "Compaction:" : "[compaction]";
+		const label = theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m`);
 		this.addChild(new Text(label, 0, 0));
 		this.addChild(new Spacer(1));
 

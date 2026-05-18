@@ -3,6 +3,7 @@ import type { Component } from "@earendil-works/pi-tui";
 import { Box, Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
 import type { MessageRenderer } from "../../../core/extensions/types.ts";
 import type { CustomMessage } from "../../../core/messages.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 
 /**
@@ -30,7 +31,8 @@ export class CustomMessageComponent extends Container {
 		this.addChild(new Spacer(1));
 
 		// Create box with purple background (used for default rendering)
-		this.box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
+		const padding = isFlatScreenReaderMode() ? 0 : 1;
+		this.box = new Box(padding, padding, (t) => theme.bg("customMessageBg", t));
 
 		this.rebuild();
 	}
@@ -45,6 +47,10 @@ export class CustomMessageComponent extends Container {
 	override invalidate(): void {
 		super.invalidate();
 		this.rebuild();
+	}
+
+	override render(width: number): string[] {
+		return mergeScreenReaderLabelWithBody(super.render(width));
 	}
 
 	private rebuild(): void {
@@ -75,7 +81,10 @@ export class CustomMessageComponent extends Container {
 		this.box.clear();
 
 		// Default rendering: label + content
-		const label = theme.fg("customMessageLabel", `\x1b[1m[${this.message.customType}]\x1b[22m`);
+		const labelText = isFlatScreenReaderMode()
+			? `Extension: ${this.message.customType}`
+			: `[${this.message.customType}]`;
+		const label = theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m`);
 		this.box.addChild(new Text(label, 0, 0));
 		this.box.addChild(new Spacer(1));
 

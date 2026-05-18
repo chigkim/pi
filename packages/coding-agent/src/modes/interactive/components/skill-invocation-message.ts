@@ -1,5 +1,6 @@
 import { Box, Markdown, type MarkdownTheme, Text } from "@earendil-works/pi-tui";
 import type { ParsedSkillBlock } from "../../../core/agent-session.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";
 
@@ -14,7 +15,8 @@ export class SkillInvocationMessageComponent extends Box {
 	private markdownTheme: MarkdownTheme;
 
 	constructor(skillBlock: ParsedSkillBlock, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
-		super(1, 1, (t) => theme.bg("customMessageBg", t));
+		const padding = isFlatScreenReaderMode() ? 0 : 1;
+		super(padding, padding, (t) => theme.bg("customMessageBg", t));
 		this.skillBlock = skillBlock;
 		this.markdownTheme = markdownTheme;
 		this.updateDisplay();
@@ -30,12 +32,18 @@ export class SkillInvocationMessageComponent extends Box {
 		this.updateDisplay();
 	}
 
+	override render(width: number): string[] {
+		return mergeScreenReaderLabelWithBody(super.render(width));
+	}
+
 	private updateDisplay(): void {
 		this.clear();
 
+		const labelText = isFlatScreenReaderMode() ? "Skill:" : "[skill]";
+
 		if (this.expanded) {
 			// Expanded: label + skill name header + full content
-			const label = theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m`);
+			const label = theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m`);
 			this.addChild(new Text(label, 0, 0));
 			const header = `**${this.skillBlock.name}**\n\n`;
 			this.addChild(
@@ -46,7 +54,7 @@ export class SkillInvocationMessageComponent extends Box {
 		} else {
 			// Collapsed: single line - [skill] name (hint to expand)
 			const line =
-				theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m `) +
+				theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m `) +
 				theme.fg("customMessageText", this.skillBlock.name) +
 				theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`);
 			this.addChild(new Text(line, 0, 0));

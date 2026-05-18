@@ -272,7 +272,7 @@ ${chalk.bold("Options:")}
   --list-models [search]         List available models (with optional fuzzy search)
   --verbose                      Force verbose startup (overrides quietStartup setting)
   --offline                      Disable startup network operations (same as PI_OFFLINE=1)
-  --screen-reader, -sr           Enable screen reader mode (removes decorative TUI art)
+  --screen-reader, -sr           Enable screen reader mode (overrides screenReader setting)
   --help, -h                     Show this help
   --version, -v                  Show version number
 

@@ -3,6 +3,7 @@ import type { ToolDefinition, ToolRenderContext } from "../../../core/extensions
 import { createAllToolDefinitions, type ToolName } from "../../../core/tools/index.ts";
 import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
 import { convertToPng } from "../../../utils/image-convert.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 
 export interface ToolExecutionOptions {
@@ -65,8 +66,9 @@ export class ToolExecutionComponent extends Container {
 		// Always create all shell variants. contentBox is used for default renderer-based composition.
 		// selfRenderContainer is used when the tool renders its own framing.
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
-		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
+		const padding = isFlatScreenReaderMode() ? 0 : 1;
+		this.contentBox = new Box(padding, padding, (text: string) => theme.bg("toolPendingBg", text));
+		this.contentText = new Text("", padding, padding, (text: string) => theme.bg("toolPendingBg", text));
 		this.selfRenderContainer = new Container();
 
 		if (this.hasRendererDefinition()) {
@@ -222,7 +224,11 @@ export class ToolExecutionComponent extends Container {
 		if (this.hideComponent) {
 			return [];
 		}
-		return super.render(width);
+		const lines = super.render(width);
+		if (!isFlatScreenReaderMode()) {
+			return lines;
+		}
+		return mergeScreenReaderLabelWithBody(lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)));
 	}
 
 	private updateDisplay(): void {
@@ -242,6 +248,10 @@ export class ToolExecutionComponent extends Container {
 			renderContainer.clear();
 
 			const callRenderer = this.getCallRenderer();
+			if (isFlatScreenReaderMode()) {
+				renderContainer.addChild(new Text("Tool:", 0, 0));
+			}
+
 			if (!callRenderer) {
 				renderContainer.addChild(this.createCallFallback());
 				hasContent = true;
@@ -289,7 +299,9 @@ export class ToolExecutionComponent extends Container {
 			}
 		} else {
 			this.contentText.setCustomBgFn(bgFn);
-			this.contentText.setText(this.formatToolExecution());
+			this.contentText.setText(
+				isFlatScreenReaderMode() ? `Tool:\n${this.formatToolExecution()}` : this.formatToolExecution(),
+			);
 			hasContent = true;
 		}
 

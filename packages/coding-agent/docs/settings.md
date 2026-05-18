@@ -47,6 +47,7 @@ Edit directly or use `/settings` for common options.
 | `editorPaddingX` | number | `0` | Horizontal padding for input editor (0-3) |
 | `autocompleteMaxVisible` | number | `5` | Max visible items in autocomplete dropdown (3-20) |
 | `showHardwareCursor` | boolean | `false` | Show terminal cursor |
+| `screenReader` | boolean | `false` | Enable screen reader mode; `--screen-reader`/`-sr` overrides this setting |
 
 ### Telemetry and update checks
 
@@ -236,6 +237,7 @@ See [packages.md](packages.md) for package management details.
   "defaultModel": "claude-sonnet-4-20250514",
   "defaultThinkingLevel": "medium",
   "theme": "dark",
+  "screenReader": false,
   "compaction": {
     "enabled": true,
     "reserveTokens": 16384,

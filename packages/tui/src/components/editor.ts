@@ -488,7 +488,12 @@ export class Editor implements Component, Focusable {
 				const marker = emitCursorMarker ? CURSOR_MARKER : "";
 
 				if (!this.showBorders) {
-					displayText = before + marker + after;
+					if (before.length === 0 && after.length === 0) {
+						displayText = `${marker}>`;
+						lineVisibleWidth = 1;
+					} else {
+						displayText = before + marker + after;
+					}
 				} else if (after.length > 0) {
 					// Cursor is on a character (grapheme) - replace it with highlighted version
 					// Get the first grapheme from 'after'

@@ -497,6 +497,7 @@ export async function main(args: string[], options?: MainOptions) {
 	const cwd = process.cwd();
 	const agentDir = getAgentDir();
 	const startupSettingsManager = SettingsManager.create(cwd, agentDir);
+	setScreenReaderMode(parsed.screenReader ?? startupSettingsManager.getScreenReaderMode());
 	reportDiagnostics(collectSettingsDiagnostics(startupSettingsManager, "startup session lookup"));
 
 	// Decide the final runtime cwd before creating cwd-bound runtime services.
@@ -624,6 +625,8 @@ export async function main(args: string[], options?: MainOptions) {
 	const { services, session, modelFallbackMessage } = runtime;
 	const { settingsManager, modelRegistry, resourceLoader } = services;
 	configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
+	const screenReaderMode = parsed.screenReader ?? settingsManager.getScreenReaderMode();
+	setScreenReaderMode(screenReaderMode);
 
 	if (parsed.help) {
 		const extensionFlags = resourceLoader
@@ -692,7 +695,7 @@ export async function main(args: string[], options?: MainOptions) {
 			initialImages,
 			initialMessages: parsed.messages,
 			verbose: parsed.verbose,
-			screenReader: parsed.screenReader,
+			screenReader: screenReaderMode,
 		});
 		if (startupBenchmark) {
 			await interactiveMode.init();
