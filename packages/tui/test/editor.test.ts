@@ -598,7 +598,7 @@ describe("Editor component", () => {
 			const editor = new Editor(createTestTUI(), defaultEditorTheme, { showBorders: false });
 			let lines = editor.render(20);
 
-			assert.deepStrictEqual(lines, [""]);
+			assert.deepStrictEqual(lines, [">"]);
 
 			editor.setText("hello");
 			lines = editor.render(20);
