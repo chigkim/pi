@@ -1,5 +1,13 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { Container, Markdown, type MarkdownTheme, Spacer, Text } from "@earendil-works/pi-tui";
+import {
+	Container,
+	Markdown,
+	type MarkdownTheme,
+	Spacer,
+	Text,
+	visibleWidth,
+	wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 
@@ -76,9 +84,13 @@ export class AssistantMessageComponent extends Container {
 				const hasAssistantLabel = lines[0] === "Assistant:";
 				const firstResponseLine = hasAssistantLabel ? 1 : 0;
 				if (firstResponseLine < lines.length) {
-					lines[firstResponseLine] = lines[firstResponseLine].trimStart();
 					if (hasAssistantLabel) {
-						lines.splice(0, 2, `Assistant: ${lines[firstResponseLine]}`);
+						const labelPrefix = "Assistant: ";
+						const firstLineWidth = Math.max(1, width - visibleWidth(labelPrefix));
+						const firstLineParts = wrapTextWithAnsi(lines[firstResponseLine].trimStart(), firstLineWidth);
+						lines.splice(0, 2, labelPrefix + firstLineParts[0], ...firstLineParts.slice(1));
+					} else {
+						lines[firstResponseLine] = lines[firstResponseLine].trimStart();
 					}
 				}
 			}

@@ -81,10 +81,50 @@ describe("AssistantMessageComponent", () => {
 		).render(20);
 
 		expect(lines).toEqual([
-			`${OSC133_ZONE_START}Assistant: one two three four`,
+			`${OSC133_ZONE_START}Assistant: one two`,
+			"three",
+			"four",
 			"five six seven eight",
 			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}nine ten`,
 		]);
+	});
+
+	test("keeps merged screen reader assistant label within width for full first response lines", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "alpha beta gamma delta epsilon zeta eta theta iota kappa" }]),
+		).render(30);
+
+		expect(lines).toEqual([
+			`${OSC133_ZONE_START}Assistant: alpha beta gamma`,
+			"delta epsilon",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}zeta eta theta iota kappa`,
+		]);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(30);
+		}
+	});
+
+	test("keeps merged screen reader assistant label within width for styled response lines", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{
+					type: "text",
+					text: "If I had to choose between the two conclusions, I would choose the more cautious **God probably does not exist** conclusion specifically aimed at a traditional personal God who is all-powerful, all-knowing, and perfectly good.",
+				},
+			]),
+		).render(80);
+
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(80);
+		}
+		expect(lines[0]).toContain("Assistant:");
+		expect(lines.join("\n")).toContain("God probably does not exist");
 	});
 
 	test("keeps merged screen reader assistant label within width when more content follows", () => {
