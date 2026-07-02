@@ -4,6 +4,7 @@
  */
 
 import { Container, getKeybindings, Spacer, Text, type TUI } from "@earendil-works/pi-tui";
+import { getSelectionPrefix } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { CountdownTimer } from "./countdown-timer.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
@@ -96,7 +97,7 @@ export class ExtensionSelectorComponent extends Container {
 		for (let i = startIndex; i < endIndex; i++) {
 			const isSelected = i === this.selectedIndex;
 			const text = isSelected
-				? theme.fg("accent", "→ ") + theme.fg("accent", this.options[i])
+				? theme.fg("accent", getSelectionPrefix()) + theme.fg("accent", this.options[i])
 				: `  ${theme.fg("text", this.options[i])}`;
 			this.listContainer.addChild(new Text(text, 1, 0));
 		}
