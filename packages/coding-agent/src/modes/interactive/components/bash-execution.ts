@@ -10,6 +10,7 @@ import {
 	truncateTail,
 } from "../../../core/tools/truncate.ts";
 import { stripAnsi } from "../../../utils/ansi.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, keyText } from "./keybinding-hints.ts";
@@ -54,6 +55,7 @@ export class BashExecutionComponent extends Container {
 			(spinner) => theme.fg(this.colorKey, spinner),
 			(text) => theme.fg("muted", text),
 			`Running... (${keyText("tui.select.cancel")} to cancel)`, // Plain text for loader
+			isFlatScreenReaderMode() ? { frames: [], paddingX: 0 } : undefined,
 		);
 
 		// Bottom border
@@ -73,6 +75,10 @@ export class BashExecutionComponent extends Container {
 	setOutputPad(outputPad: number): void {
 		this.outputPad = outputPad;
 		this.updateDisplay();
+	}
+
+	override render(width: number): string[] {
+		return mergeScreenReaderLabelWithBody(super.render(width), width);
 	}
 
 	override invalidate(): void {
@@ -137,8 +143,14 @@ export class BashExecutionComponent extends Container {
 		// Rebuild content container
 		this.contentContainer.clear();
 
+		const padding = isFlatScreenReaderMode() ? 0 : this.outputPad;
+
+		if (isFlatScreenReaderMode()) {
+			this.contentContainer.addChild(new Text("Bash:", 0, 0));
+		}
+
 		// Command header
-		const header = new Text(theme.fg(this.colorKey, theme.bold(`$ ${this.command}`)), this.outputPad, 0);
+		const header = new Text(theme.fg(this.colorKey, theme.bold(`$ ${this.command}`)), padding, 0);
 		this.contentContainer.addChild(header);
 
 		// Output
@@ -146,7 +158,7 @@ export class BashExecutionComponent extends Container {
 			if (this.expanded) {
 				// Show all lines
 				const displayText = availableLines.map((line) => theme.fg("muted", line)).join("\n");
-				this.contentContainer.addChild(new Text(`\n${displayText}`, this.outputPad, 0));
+				this.contentContainer.addChild(new Text(`\n${displayText}`, padding, 0));
 			} else {
 				// Use shared visual truncation utility with width-aware caching
 				const styledOutput = previewLogicalLines.map((line) => theme.fg("muted", line)).join("\n");
@@ -156,7 +168,7 @@ export class BashExecutionComponent extends Container {
 				this.contentContainer.addChild({
 					render: (width: number) => {
 						if (cachedLines === undefined || cachedWidth !== width) {
-							const result = truncateToVisualLines(styledInput, PREVIEW_LINES, width, this.outputPad);
+							const result = truncateToVisualLines(styledInput, PREVIEW_LINES, width, padding);
 							cachedLines = result.visualLines;
 							cachedWidth = width;
 						}
@@ -202,7 +214,7 @@ export class BashExecutionComponent extends Container {
 			}
 
 			if (statusParts.length > 0) {
-				this.contentContainer.addChild(new Text(`\n${statusParts.join("\n")}`, this.outputPad, 0));
+				this.contentContainer.addChild(new Text(`\n${statusParts.join("\n")}`, padding, 0));
 			}
 		}
 	}
