@@ -131,6 +131,7 @@ import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
+import { isFlatScreenReaderMode, type ScreenReaderMode, setScreenReaderMode } from "./accessibility.ts";
 import { reportBug } from "./bug-report.ts";
 import { createChatViewport } from "./chat-viewport.ts";
 import { ArminComponent } from "./components/armin.ts";
@@ -442,6 +443,8 @@ export interface InteractiveModeOptions {
 	initialThemeSetting?: string;
 	/** Terminal implementation. Defaults to the current process terminal. */
 	terminal?: Terminal;
+	/** Screen reader mode for reducing decorative TUI output. */
+	screenReader?: ScreenReaderMode;
 }
 
 export class InteractiveMode {
@@ -595,6 +598,7 @@ export class InteractiveMode {
 	}
 
 	constructor(runtimeHost: AgentSessionRuntime, options: InteractiveModeOptions = {}) {
+		setScreenReaderMode(options.screenReader);
 		this.runtimeHost = runtimeHost;
 		setCapabilityOverrides(this.settingsManager.getTerminalCapabilityOverrides());
 		const tuiMode = options.tuiMode ?? this.settingsManager.getTuiMode();
@@ -619,6 +623,7 @@ export class InteractiveMode {
 		});
 		this.ui = createInteractiveTuiReference(() => this.renderer);
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
+		this.ui.setTrimTrailingWhitespace(isFlatScreenReaderMode());
 		this.headerContainer = new Container();
 		this.loadedResourcesContainer = new Container();
 		this.chatContainer = new Container();
@@ -637,7 +642,10 @@ export class InteractiveMode {
 		this.defaultEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
 			paddingX: editorPaddingX,
 			autocompleteMaxVisible,
-			embedWorkingStatus: true,
+			// The embedded working status lives in the editor's top border, so it only
+			// works when borders are drawn. Flat screen reader mode shows it separately.
+			embedWorkingStatus: !isFlatScreenReaderMode(),
+			showBorders: !isFlatScreenReaderMode(),
 		});
 		this.editor = this.defaultEditor;
 		this.editorContainer = new Container();
@@ -906,6 +914,7 @@ export class InteractiveMode {
 			fullscreenWheelScrollLines: this.settingsManager.getFullscreenWheelScrollLines(),
 		});
 		nextUi.setClearOnShrink(clearOnShrink);
+		nextUi.setTrimTrailingWhitespace(isFlatScreenReaderMode());
 		nextUi.onDebug = onDebug;
 		if (nextUi instanceof TuiMainScreen && this.mainScreenRenderState) {
 			nextUi.restoreRenderState(this.mainScreenRenderState);
@@ -998,8 +1007,12 @@ export class InteractiveMode {
 			// Built on demand so the header follows theme changes. The logo's first line carries the version,
 			// its second line the first line of key hints. Terminals that cannot render the logo get a
 			// "Pi vX" line instead, with the key hints below it.
-			const showLogo = supportsPiLogo();
+			const showLogo = supportsPiLogo() && !isFlatScreenReaderMode();
 			const withLogo = (hints: string) => {
+				if (isFlatScreenReaderMode()) {
+					const label = this.options.screenReader ? "\nScreen reader mode" : "";
+					return `${theme.bold(theme.fg("accent", APP_NAME))}${theme.fg("dim", ` v${this.version}`)}${label}\n${hints}`;
+				}
 				if (!showLogo) return `${piWordmark()} ${theme.fg("dim", `v${this.version}`)}\n${hints}`;
 				const [top, bottom] = piLogoLines();
 				return `${top} ${theme.fg("dim", `v${this.version}`)}\n${bottom} ${hints}`;
@@ -1052,7 +1065,7 @@ export class InteractiveMode {
 				() => `${withLogo(compactInstructions())}\n${compactOnboarding()}\n\n${onboarding()}`,
 				() => `${withLogo(expandedInstructions())}\n\n${onboarding()}`,
 				this.getStartupExpansionState(),
-				1,
+				isFlatScreenReaderMode() ? 0 : 1,
 				0,
 			);
 			if (showLogo) header.onLogoClick = (column, row) => playPiLogoAnimation(this.renderer, column, row);
@@ -2786,7 +2799,7 @@ export class InteractiveMode {
 					this.hideExtensionEditor();
 					resolve(undefined);
 				},
-				undefined,
+				{ showBorders: !isFlatScreenReaderMode() },
 				this.settingsManager.getExternalEditorCommand(),
 			);
 
@@ -3772,7 +3785,7 @@ export class InteractiveMode {
 
 		const spacer = new Spacer(1);
 		this.lastStatusMessage = message;
-		const text = new ThemedText(() => theme.fg("dim", this.lastStatusMessage), 1, 0);
+		const text = new ThemedText(() => theme.fg("dim", this.lastStatusMessage), isFlatScreenReaderMode() ? 0 : 1, 0);
 		this.chatContainer.addChild(spacer);
 		this.chatContainer.addChild(text);
 		this.lastStatusSpacer = spacer;
@@ -6891,18 +6904,32 @@ export class InteractiveMode {
 	}
 
 	private handleArminSaysHi(): void {
+		if (isFlatScreenReaderMode()) {
+			this.showStatus("Armin says hi.");
+			return;
+		}
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new ArminComponent(this.ui));
 		this.ui.requestRender();
 	}
 
 	private handleDementedDelves(): void {
+		if (isFlatScreenReaderMode()) {
+			this.showStatus(
+				"pi has joined Earendil. Read the blog post: https://mariozechner.at/posts/2026-04-08-ive-sold-out/",
+			);
+			return;
+		}
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new EarendilAnnouncementComponent());
 		this.ui.requestRender();
 	}
 
 	private handleDaxnuts(): void {
+		if (isFlatScreenReaderMode()) {
+			this.showStatus("Dax says hi.");
+			return;
+		}
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new DaxnutsComponent(this.ui));
 		this.ui.requestRender();

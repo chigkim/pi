@@ -1,5 +1,6 @@
 import { Container, Markdown, type MarkdownTheme } from "@earendil-works/pi-tui";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
 
@@ -37,6 +38,11 @@ export class UserMessageComponent extends Container {
 
 	private rebuild(): void {
 		this.clear();
+		if (isFlatScreenReaderMode()) {
+			this.addChild(new Markdown(`User: ${this.text}`, 0, 0, this.markdownTheme));
+			return;
+		}
+
 		// The Markdown pads and colors its own background: a Box around it would keep a second full-width copy of every
 		// line, with identical output.
 		this.addChild(
