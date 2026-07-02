@@ -738,6 +738,22 @@ describe("Editor component", () => {
 		});
 	});
 
+	describe("Rendering options", () => {
+		it("omits decorative prompt borders and right padding when disabled", () => {
+			const editor = new Editor(createTestTUI(), defaultEditorTheme, { showBorders: false });
+			let lines = editor.render(20);
+
+			assert.deepStrictEqual(lines, [">"]);
+
+			editor.setText("hello");
+			lines = editor.render(20);
+
+			assert.deepStrictEqual(lines, ["hello"]);
+			assert.ok(!lines.some((line) => line.includes("─")));
+			assert.strictEqual(visibleWidth(lines[0]!), 5);
+		});
+	});
+
 	describe("Grapheme-aware text wrapping", () => {
 		it("wraps lines correctly when text contains wide emojis", () => {
 			const editor = new Editor(createTestTUI(), defaultEditorTheme);

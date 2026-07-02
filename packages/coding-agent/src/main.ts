@@ -64,6 +64,7 @@ import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/tru
 import { builtInExtensions } from "./extensions/index.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
+import { setScreenReaderMode } from "./modes/interactive/accessibility.ts";
 import { initTheme, setThemeJsonValidator, stopThemeWatcher } from "./modes/interactive/theme/theme.ts";
 import { validateThemeJson } from "./modes/interactive/theme/theme-json.ts";
 import { cleanupManagedInstall, handleConfigCommand, handlePackageCommand } from "./package-manager-cli.ts";
@@ -601,6 +602,7 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 
 	const parsed = parseArgs(args);
+	setScreenReaderMode(parsed.screenReader);
 	if (parsed.diagnostics.length > 0) {
 		for (const d of parsed.diagnostics) {
 			const color = d.type === "error" ? chalk.red : chalk.yellow;
@@ -614,6 +616,9 @@ export async function main(args: string[], options?: MainOptions) {
 
 	if (parsed.version) {
 		console.log(VERSION);
+		if (parsed.screenReader) {
+			console.log("Screen reader mode");
+		}
 		process.exit(0);
 	}
 
@@ -650,6 +655,7 @@ export async function main(args: string[], options?: MainOptions) {
 	time("runMigrations");
 
 	const startupSettingsManager = SettingsManager.create(cwd, agentDir);
+	setScreenReaderMode(parsed.screenReader ?? startupSettingsManager.getScreenReaderMode());
 	const startupSettingsDiagnostics = collectSettingsDiagnostics(startupSettingsManager);
 
 	// Experimental first-time setup: theme choice and analytics opt-in.
@@ -849,6 +855,8 @@ export async function main(args: string[], options?: MainOptions) {
 	setCapabilityOverrides(settingsManager.getTerminalCapabilityOverrides());
 	applyHttpProxySettings(settingsManager.getGlobalSettings().httpProxy);
 	configureHttpDispatcher(settingsManager.getHttpIdleTimeoutMs());
+	const screenReaderMode = parsed.screenReader ?? settingsManager.getScreenReaderMode();
+	setScreenReaderMode(screenReaderMode);
 
 	if (parsed.help) {
 		reportDiagnostics(startupSettingsDiagnostics);
@@ -942,6 +950,7 @@ export async function main(args: string[], options?: MainOptions) {
 			verbose: parsed.verbose,
 			tuiMode: parsed.tuiMode,
 			initialThemeSetting: parsed.useTheme,
+			screenReader: screenReaderMode,
 		});
 		if (startupBenchmark) {
 			await interactiveMode.init();

@@ -13,7 +13,14 @@ import {
 	type TerminalColorScheme,
 } from "./terminal-colors.ts";
 import { getCapabilities, isImageLine, setCellDimensions } from "./terminal-image.ts";
-import { extractSegments, normalizeTerminalOutput, sliceByColumn, sliceWithWidth, visibleWidth } from "./utils.ts";
+import {
+	extractAnsiCode,
+	extractSegments,
+	normalizeTerminalOutput,
+	sliceByColumn,
+	sliceWithWidth,
+	visibleWidth,
+} from "./utils.ts";
 
 /**
  * Component interface - all components must implement this
@@ -435,6 +442,8 @@ export interface TUI extends Component {
 	setShowHardwareCursor(enabled: boolean): void;
 	getClearOnShrink(): boolean;
 	setClearOnShrink(enabled: boolean): void;
+	getTrimTrailingWhitespace(): boolean;
+	setTrimTrailingWhitespace(enabled: boolean): void;
 	setFocus(component: Component | null): void;
 	showOverlay(component: Component, options?: OverlayOptions): OverlayHandle;
 	hideOverlay(): void;
@@ -477,6 +486,7 @@ export abstract class TuiBase extends Container implements TUI {
 	private static readonly MIN_RENDER_INTERVAL_MS = 16;
 	private showHardwareCursor = false;
 	private clearOnShrink = false;
+	private trimTrailingWhitespace = false;
 	protected fullRedrawCount = 0;
 	protected stopped = false;
 	private pendingOsc11BackgroundReplies = 0;
@@ -549,6 +559,55 @@ export abstract class TuiBase extends Container implements TUI {
 
 	getFocusedComponent(): Component | null {
 		return this.focusedComponent;
+	}
+
+	getTrimTrailingWhitespace(): boolean {
+		return this.trimTrailingWhitespace;
+	}
+
+	setTrimTrailingWhitespace(enabled: boolean): void {
+		if (this.trimTrailingWhitespace === enabled) return;
+		this.trimTrailingWhitespace = enabled;
+		this.requestRender();
+	}
+
+	override render(width: number): string[] {
+		const lines = super.render(width);
+		if (!this.trimTrailingWhitespace) {
+			return lines;
+		}
+		return lines.map((line) => this.trimLineTrailingWhitespace(line));
+	}
+
+	private trimLineTrailingWhitespace(line: string): string {
+		let remaining = line;
+		let suffix = "";
+		while (remaining.length > 0) {
+			const trimmed = remaining.replace(/[ \t]+$/g, "");
+			if (trimmed.length !== remaining.length) {
+				remaining = trimmed;
+				continue;
+			}
+
+			let trailingAnsi: { index: number; code: string } | undefined;
+			for (let i = 0; i < remaining.length; ) {
+				const ansi = extractAnsiCode(remaining, i);
+				if (ansi) {
+					if (i + ansi.length === remaining.length) {
+						trailingAnsi = { index: i, code: ansi.code };
+					}
+					i += ansi.length;
+				} else {
+					i++;
+				}
+			}
+			if (!trailingAnsi) {
+				break;
+			}
+			remaining = remaining.slice(0, trailingAnsi.index);
+			suffix = trailingAnsi.code + suffix;
+		}
+		return remaining + suffix;
 	}
 
 	setFocus(component: Component | null): void {

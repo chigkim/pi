@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile from "proper-lockfile";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
+import type { ScreenReaderMode } from "../modes/interactive/accessibility.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dispatcher.ts";
@@ -133,6 +134,7 @@ export interface Settings {
 	outputPad?: 0 | 1; // Horizontal padding for chat message output (default: 1)
 	autocompleteMaxVisible?: number; // Max visible items in autocomplete dropdown (default: 5)
 	showHardwareCursor?: boolean; // Show terminal cursor while still positioning it for IME
+	screenReader?: boolean; // Enable screen reader mode
 	markdown?: MarkdownSettings;
 	warnings?: WarningSettings;
 	sessionDir?: string; // Custom session storage directory (same format as --session-dir CLI flag)
@@ -1305,6 +1307,10 @@ export class SettingsManager {
 
 	getShowHardwareCursor(): boolean {
 		return this.settings.showHardwareCursor ?? process.env.PI_HARDWARE_CURSOR === "1";
+	}
+
+	getScreenReaderMode(): ScreenReaderMode | undefined {
+		return this.settings.screenReader === true ? "flat" : undefined;
 	}
 
 	setShowHardwareCursor(enabled: boolean): void {

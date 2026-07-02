@@ -206,6 +206,20 @@ describe("TUI bounded render output", () => {
 	});
 });
 
+describe("TUI render options", () => {
+	it("trims trailing whitespace while preserving trailing ANSI codes when enabled", () => {
+		const terminal = new VirtualTerminal(40, 10);
+		const tui = new TuiMainScreen(terminal);
+		const component = new TestComponent();
+		component.lines = ["plain   ", "\x1b[2mstyled\x1b[0m   ", "colored spaces   \x1b[0m"];
+		tui.addChild(component);
+
+		tui.setTrimTrailingWhitespace(true);
+
+		assert.deepStrictEqual(tui.render(40), ["plain", "\x1b[2mstyled\x1b[0m", "colored spaces\x1b[0m"]);
+	});
+});
+
 /** Set each environment variable to `value`, returning a function that restores the previous state. */
 function overrideEnv(names: readonly string[], value: string): () => void {
 	const previousValues = names.map((name) => [name, process.env[name]] as const);

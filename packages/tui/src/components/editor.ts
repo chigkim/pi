@@ -240,6 +240,7 @@ export interface EditorTheme {
 export interface EditorOptions {
 	paddingX?: number;
 	autocompleteMaxVisible?: number;
+	showBorders?: boolean;
 }
 
 const SLASH_COMMAND_SELECT_LIST_LAYOUT: SelectListLayoutOptions = {
@@ -294,10 +295,15 @@ export class Editor implements Component, Focusable {
 	protected tui: TUI;
 	private theme: EditorTheme;
 	private paddingX: number = 0;
+	private showBorders: boolean = true;
 
 	// Store last render geometry for cursor navigation and mouse hit-testing.
 	private lastWidth: number = 80;
 	private renderedVisibleLineCount = 1;
+	/** Rows rendered above the text area (top border or scroll hint), 0 when borders are off. */
+	private renderedLeadingLineCount = 1;
+	/** Rows rendered below the text area (bottom border or scroll hint), 0 when borders are off. */
+	private renderedTrailingLineCount = 1;
 	private renderedAutocompleteHeight = 0;
 
 	// Vertical scrolling support
@@ -366,6 +372,7 @@ export class Editor implements Component, Focusable {
 		this.paddingX = Number.isFinite(paddingX) ? Math.max(0, Math.floor(paddingX)) : 0;
 		const maxVisible = options.autocompleteMaxVisible ?? 5;
 		this.autocompleteMaxVisible = Number.isFinite(maxVisible) ? Math.max(3, Math.min(20, Math.floor(maxVisible))) : 5;
+		this.showBorders = options.showBorders ?? true;
 	}
 
 	/** Set of currently valid paste IDs, for marker-aware segmentation. */
@@ -548,13 +555,19 @@ export class Editor implements Component, Focusable {
 		const rightPadding = leftPadding;
 
 		// Render top border (with scroll indicator if scrolled down)
-		result.push(this.renderTopBorder(width, this.scrollOffset));
+		if (this.showBorders) {
+			result.push(this.renderTopBorder(width, this.scrollOffset));
+		} else if (this.scrollOffset > 0) {
+			result.push(`↑ ${this.scrollOffset} more`);
+		}
+		this.renderedLeadingLineCount = result.length;
 
 		// Render each visible layout line
 		// Emit hardware cursor marker when focused so TUI can position the
 		// hardware cursor for IME candidate-window placement even while
 		// autocomplete (e.g. slash-command menu) is visible.
 		const emitCursorMarker = this.focused;
+		const fillWidth = this.showBorders;
 
 		for (const layoutLine of visibleLines) {
 			let displayText = layoutLine.text;
@@ -569,7 +582,14 @@ export class Editor implements Component, Focusable {
 				// Hardware cursor marker (zero-width, emitted before fake cursor for IME positioning)
 				const marker = emitCursorMarker ? CURSOR_MARKER : "";
 
-				if (after.length > 0) {
+				if (!this.showBorders) {
+					if (before.length === 0 && after.length === 0) {
+						displayText = `${marker}>`;
+						lineVisibleWidth = 1;
+					} else {
+						displayText = before + marker + after;
+					}
+				} else if (after.length > 0) {
 					// Cursor is on a character (grapheme) - replace it with highlighted version
 					// Get the first grapheme from 'after'
 					const afterGraphemes = [...this.segment(after, "grapheme")];
@@ -591,8 +611,8 @@ export class Editor implements Component, Focusable {
 			}
 
 			// Calculate padding based on actual visible width
-			const padding = " ".repeat(Math.max(0, contentWidth - lineVisibleWidth));
-			const lineRightPadding = cursorInPadding ? rightPadding.slice(1) : rightPadding;
+			const padding = fillWidth ? " ".repeat(Math.max(0, contentWidth - lineVisibleWidth)) : "";
+			const lineRightPadding = fillWidth ? (cursorInPadding ? rightPadding.slice(1) : rightPadding) : "";
 
 			// Render the line (no side borders, just horizontal lines above and below)
 			result.push(`${leftPadding}${displayText}${padding}${lineRightPadding}`);
@@ -600,7 +620,12 @@ export class Editor implements Component, Focusable {
 
 		// Render bottom border (with scroll indicator if more content below)
 		const linesBelow = layoutLines.length - (this.scrollOffset + visibleLines.length);
-		result.push(this.renderBottomBorder(width, linesBelow));
+		if (this.showBorders) {
+			result.push(this.renderBottomBorder(width, linesBelow));
+		} else if (linesBelow > 0) {
+			result.push(`↓ ${linesBelow} more`);
+		}
+		this.renderedTrailingLineCount = result.length - this.renderedLeadingLineCount - visibleLines.length;
 
 		// Add autocomplete list if active
 		this.renderedAutocompleteHeight = 0;
@@ -609,8 +634,9 @@ export class Editor implements Component, Focusable {
 			this.renderedAutocompleteHeight = autocompleteResult.length;
 			for (const line of autocompleteResult) {
 				const lineWidth = visibleWidth(line);
-				const linePadding = " ".repeat(Math.max(0, contentWidth - lineWidth));
-				result.push(`${leftPadding}${line}${linePadding}${rightPadding}`);
+				const linePadding = fillWidth ? " ".repeat(Math.max(0, contentWidth - lineWidth)) : "";
+				const autocompleteRightPadding = fillWidth ? rightPadding : "";
+				result.push(`${leftPadding}${line}${linePadding}${autocompleteRightPadding}`);
 			}
 		}
 
@@ -618,7 +644,8 @@ export class Editor implements Component, Focusable {
 	}
 
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
-		const autocompleteStartRow = this.renderedVisibleLineCount + 2;
+		const autocompleteStartRow =
+			this.renderedLeadingLineCount + this.renderedVisibleLineCount + this.renderedTrailingLineCount;
 		if (
 			this.autocompleteState &&
 			this.autocompleteList &&
@@ -643,10 +670,12 @@ export class Editor implements Component, Focusable {
 		// The renderer synthesizes a click when press and release land on the same
 		// cell without movement, which is the gesture that positions the cursor.
 		if (event.type !== "click" || event.button !== "left") return undefined;
-		if (event.y <= 0 || event.y > this.renderedVisibleLineCount) return { handled: true, focus: true };
+		const firstTextRow = this.renderedLeadingLineCount;
+		if (event.y < firstTextRow || event.y >= firstTextRow + this.renderedVisibleLineCount)
+			return { handled: true, focus: true };
 
 		const visualLines = this.buildVisualLineMap(this.lastWidth);
-		const visualLineIndex = this.scrollOffset + event.y - 1;
+		const visualLineIndex = this.scrollOffset + event.y - firstTextRow;
 		const visualLine = visualLines[visualLineIndex];
 		if (!visualLine) return { handled: true, focus: true };
 		const logicalLine = this.state.lines[visualLine.logicalLine] ?? "";
