@@ -249,6 +249,24 @@ describe("TreeSelectorComponent", () => {
 		});
 	});
 
+	describe("selection cursor", () => {
+		test("uses the angle-quote cursor glyph in normal (non screen reader) mode", () => {
+			const entries = [userMessage("user-1", null, "hello"), assistantMessage("asst-1", "user-1", "hi")];
+			const tree = buildTree(entries);
+			const selector = new TreeSelectorComponent(
+				tree,
+				"asst-1",
+				24,
+				() => {},
+				() => {},
+			);
+
+			const lines = selector.render(60).map(stripVTControlCharacters);
+			const selectedLine = lines.find((line) => line.includes("assistant: hi"));
+			expect(selectedLine?.trimStart().startsWith("› ")).toBe(true);
+		});
+	});
+
 	describe("help", () => {
 		test("renders semantic help rows without truncating narrow terminal controls", () => {
 			const entries = [userMessage("user-1", null, "hello"), assistantMessage("asst-1", "user-1", "hi")];

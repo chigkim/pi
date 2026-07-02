@@ -1,4 +1,5 @@
 import type { Component } from "@earendil-works/pi-tui";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 
 /**
@@ -20,6 +21,9 @@ export class DynamicBorder implements Component {
 	}
 
 	render(width: number): string[] {
+		if (isFlatScreenReaderMode()) {
+			return [];
+		}
 		return [this.color("─".repeat(Math.max(1, width)))];
 	}
 }

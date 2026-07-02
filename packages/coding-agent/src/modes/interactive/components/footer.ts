@@ -4,6 +4,7 @@ import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
 import { addUsageToTotals, createUsageTotals } from "../../../core/usage-totals.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 
 /**
@@ -126,13 +127,24 @@ export class FooterComponent implements Component {
 		}
 
 		// Build stats line
+		const flatScreenReaderMode = isFlatScreenReaderMode();
 		const statsParts = [];
-		if (usageTotals.input) statsParts.push(`↑${formatTokens(usageTotals.input)}`);
-		if (usageTotals.output) statsParts.push(`↓${formatTokens(usageTotals.output)}`);
-		if (usageTotals.cacheRead) statsParts.push(`R${formatTokens(usageTotals.cacheRead)}`);
-		if (usageTotals.cacheWrite) statsParts.push(`W${formatTokens(usageTotals.cacheWrite)}`);
-		if ((usageTotals.cacheRead > 0 || usageTotals.cacheWrite > 0) && latestCacheHitRate !== undefined) {
-			statsParts.push(`CH${latestCacheHitRate.toFixed(1)}%`);
+		if (flatScreenReaderMode) {
+			if (usageTotals.input) statsParts.push(`I${formatTokens(usageTotals.input)}`);
+			if (usageTotals.output) statsParts.push(`O${formatTokens(usageTotals.output)}`);
+			if (usageTotals.cacheRead) statsParts.push(`R${formatTokens(usageTotals.cacheRead)}`);
+			if (usageTotals.cacheWrite) statsParts.push(`W${formatTokens(usageTotals.cacheWrite)}`);
+			if ((usageTotals.cacheRead > 0 || usageTotals.cacheWrite > 0) && latestCacheHitRate !== undefined) {
+				statsParts.push(`CH${latestCacheHitRate.toFixed(1)}%`);
+			}
+		} else {
+			if (usageTotals.input) statsParts.push(`↑${formatTokens(usageTotals.input)}`);
+			if (usageTotals.output) statsParts.push(`↓${formatTokens(usageTotals.output)}`);
+			if (usageTotals.cacheRead) statsParts.push(`R${formatTokens(usageTotals.cacheRead)}`);
+			if (usageTotals.cacheWrite) statsParts.push(`W${formatTokens(usageTotals.cacheWrite)}`);
+			if ((usageTotals.cacheRead > 0 || usageTotals.cacheWrite > 0) && latestCacheHitRate !== undefined) {
+				statsParts.push(`CH${latestCacheHitRate.toFixed(1)}%`);
+			}
 		}
 
 		// Kimi Coding is subscription-backed despite using API-key authentication.

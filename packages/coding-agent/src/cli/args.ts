@@ -7,6 +7,7 @@ import chalk from "chalk";
 import { APP_NAME, CONFIG_DIR_NAME, ENV_AGENT_DIR, ENV_SESSION_DIR } from "../config.ts";
 import type { ExtensionFlag } from "../core/extensions/types.ts";
 import type { TuiMode } from "../core/settings-manager.ts";
+import type { ScreenReaderMode } from "../modes/interactive/accessibility.ts";
 
 export type Mode = "text" | "json" | "rpc";
 
@@ -50,6 +51,7 @@ export interface Args {
 	tuiMode?: TuiMode;
 	verbose?: boolean;
 	projectTrustOverride?: boolean;
+	screenReader?: ScreenReaderMode;
 	messages: string[];
 	fileArgs: string[];
 	/** Unknown flags (potentially extension flags) - map of flag name to value */
@@ -58,6 +60,11 @@ export interface Args {
 }
 
 const VALID_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+const VALID_SCREEN_READER_MODES = ["flat"] as const;
+
+function isValidScreenReaderMode(mode: string): mode is ScreenReaderMode {
+	return VALID_SCREEN_READER_MODES.includes(mode as ScreenReaderMode);
+}
 
 export function isValidThinkingLevel(level: string): level is ThinkingLevel {
 	return VALID_THINKING_LEVELS.includes(level as ThinkingLevel);
@@ -222,6 +229,24 @@ export function parseArgs(args: string[]): Args {
 			result.projectTrustOverride = false;
 		} else if (arg === "--offline") {
 			result.offline = true;
+		} else if (arg === "--screen-reader" || arg === "-sr") {
+			const next = args[i + 1];
+			if (next !== undefined && isValidScreenReaderMode(next)) {
+				result.screenReader = next;
+				i++;
+			} else {
+				result.screenReader = "flat";
+			}
+		} else if (arg.startsWith("--screen-reader=")) {
+			const mode = arg.slice("--screen-reader=".length);
+			if (isValidScreenReaderMode(mode)) {
+				result.screenReader = mode;
+			} else {
+				result.diagnostics.push({
+					type: "warning",
+					message: `Invalid screen reader mode "${mode}". Valid values: ${VALID_SCREEN_READER_MODES.join(", ")}`,
+				});
+			}
 		} else if (arg.startsWith("@")) {
 			result.fileArgs.push(arg.slice(1)); // Remove @ prefix
 		} else if (arg.startsWith("--")) {
@@ -316,6 +341,7 @@ ${chalk.bold("Options:")}
   --approve, -a                  Trust project-local files for this run
   --no-approve, -na              Ignore project-local files for this run
   --offline                      Disable startup network operations (same as PI_OFFLINE=1)
+  --screen-reader, -sr           Enable screen reader mode (overrides screenReader setting)
   --                             End option parsing; treat remaining arguments as messages/files
   --help, -h                     Show this help
   --version, -v                  Show version number

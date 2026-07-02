@@ -34,6 +34,7 @@ export interface ToolRenderers {
 
 import { getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
 import { convertToPng } from "../../../utils/image-convert.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabels } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
 
@@ -99,8 +100,9 @@ export class ToolExecutionComponent extends Container {
 		// Always create all shell variants. contentBox is used for default renderer-based composition.
 		// selfRenderContainer is used when the tool renders its own framing.
 		// contentText is reserved for generic fallback rendering when no tool definition exists.
-		this.contentBox = new Box(1, 1, (text: string) => theme.bg("toolPendingBg", text));
-		this.contentText = new Text("", 1, 1, (text: string) => theme.bg("toolPendingBg", text));
+		const padding = isFlatScreenReaderMode() ? 0 : 1;
+		this.contentBox = new Box(padding, padding, (text: string) => theme.bg("toolPendingBg", text));
+		this.contentText = new Text("", padding, padding, (text: string) => theme.bg("toolPendingBg", text));
 		this.contentTextRegion = this.createResultRegion(this.contentText);
 		this.selfRenderContainer = new Container();
 
@@ -256,6 +258,7 @@ export class ToolExecutionComponent extends Container {
 			return [];
 		}
 
+		let lines: string[];
 		if (this.hasRendererDefinition() && this.getRenderShell() === "self") {
 			const contentLines = this.selfRenderContainer.render(width);
 			this.selfRenderHeight = contentLines.length;
@@ -263,7 +266,7 @@ export class ToolExecutionComponent extends Container {
 				return [];
 			}
 
-			const lines: string[] = [];
+			lines = [];
 			if (contentLines.length > 0) {
 				lines.push("");
 				lines.push(...contentLines);
@@ -278,10 +281,18 @@ export class ToolExecutionComponent extends Container {
 					lines.push(...imageComponent.render(width));
 				}
 			}
-			return lines;
+		} else {
+			lines = super.render(width);
 		}
 
-		return super.render(width);
+		if (!isFlatScreenReaderMode()) {
+			return lines;
+		}
+		return mergeScreenReaderLabels(
+			lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)),
+			["Tool:", "Result:", "Error:"],
+			width,
+		);
 	}
 
 	override handleMouse(event: TuiMouseEvent): ReturnType<Container["handleMouse"]> {
@@ -311,6 +322,10 @@ export class ToolExecutionComponent extends Container {
 			renderContainer.clear();
 
 			const callRenderer = this.getCallRenderer();
+			if (isFlatScreenReaderMode()) {
+				renderContainer.addChild(new Text("Tool:", 0, 0));
+			}
+
 			if (!callRenderer) {
 				renderContainer.addChild(this.createResultRegion(this.createCallFallback()));
 				hasContent = true;
@@ -328,6 +343,9 @@ export class ToolExecutionComponent extends Container {
 			}
 
 			if (this.result) {
+				if (isFlatScreenReaderMode()) {
+					renderContainer.addChild(new Text(this.result.isError ? "Error:" : "Result:", 0, 0));
+				}
 				const resultRenderer = this.getResultRenderer();
 				if (!resultRenderer) {
 					const component = this.createResultFallback();
@@ -358,7 +376,9 @@ export class ToolExecutionComponent extends Container {
 			}
 		} else {
 			this.contentText.setCustomBgFn(bgFn);
-			this.contentText.setText(this.formatToolExecution());
+			this.contentText.setText(
+				isFlatScreenReaderMode() ? `Tool:\n${this.formatToolExecution()}` : this.formatToolExecution(),
+			);
 			hasContent = true;
 		}
 
@@ -414,7 +434,11 @@ export class ToolExecutionComponent extends Container {
 		}
 		const output = this.getTextOutput();
 		if (output) {
-			text += `\n${output}`;
+			if (isFlatScreenReaderMode()) {
+				text += `\n\n${this.result?.isError ? "Error:" : "Result:"}\n${output}`;
+			} else {
+				text += `\n${output}`;
+			}
 		}
 		return text;
 	}
