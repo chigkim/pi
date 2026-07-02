@@ -11,6 +11,7 @@ import {
 	type TUI,
 } from "@earendil-works/pi-tui";
 import { isPreferredProvider } from "../../../core/preferred-providers.ts";
+import { getSelectionPrefix } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { getProviderBrandStyle, type ProviderBrandStyle, startBrandAnimation } from "./provider-brand.ts";
@@ -193,7 +194,7 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 				: "";
 			let line = "";
 			if (isSelected) {
-				const prefix = theme.fg("accent", "→ ");
+				const prefix = theme.fg("accent", getSelectionPrefix());
 				const brandStyle = this.stopAnimation && getProviderBrandStyle(provider.id);
 				const text = brandStyle
 					? brandStyle(provider.name, performance.now() - this.animationStart)

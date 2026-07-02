@@ -1,6 +1,7 @@
 import { Box, Container, Markdown, type MarkdownTheme, MouseRegion, Text } from "@earendil-works/pi-tui";
 import type { ParsedSkillBlock } from "../../../core/agent-session.ts";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
+import { isFlatScreenReaderMode, mergeScreenReaderLabelWithBody } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { keyText } from "./keybinding-hints.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
@@ -26,7 +27,8 @@ export class SkillInvocationMessageComponent extends Box {
 		messageId?: string,
 		timestamp?: string,
 	) {
-		super(outputPad, 1, (t) => theme.bg("customMessageBg", t));
+		const flat = isFlatScreenReaderMode();
+		super(flat ? 0 : outputPad, flat ? 0 : 1, (t) => theme.bg("customMessageBg", t));
 		this.skillBlock = skillBlock;
 		this.markdownTheme = markdownTheme;
 		this.markdownTransformers = markdownTransformers;
@@ -41,7 +43,7 @@ export class SkillInvocationMessageComponent extends Box {
 	}
 
 	setOutputPad(outputPad: number): void {
-		this.setPaddingX(outputPad);
+		this.setPaddingX(isFlatScreenReaderMode() ? 0 : outputPad);
 	}
 
 	override invalidate(): void {
@@ -49,13 +51,19 @@ export class SkillInvocationMessageComponent extends Box {
 		this.updateDisplay();
 	}
 
+	override render(width: number): string[] {
+		return mergeScreenReaderLabelWithBody(super.render(width), width);
+	}
+
 	private updateDisplay(): void {
 		this.clear();
 		const content = new Container();
 
+		const labelText = isFlatScreenReaderMode() ? "Skill:" : "[skill]";
+
 		if (this.expanded) {
 			// Expanded: label + skill name header + full content
-			const label = theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m`);
+			const label = theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m`);
 			content.addChild(new Text(label, 0, 0));
 			const header = `**${this.skillBlock.name}**\n\n`;
 			const transform = createMarkdownTransform(
@@ -79,7 +87,7 @@ export class SkillInvocationMessageComponent extends Box {
 		} else {
 			// Collapsed: single line - [skill] name (hint to expand)
 			const line =
-				theme.fg("customMessageLabel", `\x1b[1m[skill]\x1b[22m `) +
+				theme.fg("customMessageLabel", `\x1b[1m${labelText}\x1b[22m `) +
 				theme.fg("customMessageText", this.skillBlock.name) +
 				theme.fg("dim", ` (${keyText("app.tools.expand")} to expand)`);
 			content.addChild(new Text(line, 0, 0));
