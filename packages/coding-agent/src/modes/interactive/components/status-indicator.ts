@@ -1,10 +1,15 @@
-import { type Component, Loader, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
+import { type Component, Loader, type LoaderIndicatorOptions, type TUI, truncateToWidth } from "@earendil-works/pi-tui";
 import type { WorkingIndicatorOptions } from "../../../core/extensions/index.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { CountdownTimer } from "./countdown-timer.ts";
 import { keyText } from "./keybinding-hints.ts";
 
 export type StatusIndicatorKind = "working" | "retry" | "compaction" | "branchSummary";
+
+function resolveIndicatorOptions(indicator?: WorkingIndicatorOptions): LoaderIndicatorOptions | undefined {
+	return isFlatScreenReaderMode() ? { frames: [], paddingX: 0 } : indicator;
+}
 
 export class StatusIndicator extends Loader {
 	readonly kind: StatusIndicatorKind;
@@ -17,7 +22,7 @@ export class StatusIndicator extends Loader {
 		message: string,
 		indicator?: WorkingIndicatorOptions,
 	) {
-		super(ui, spinnerColorFn, messageColorFn, message, indicator);
+		super(ui, spinnerColorFn, messageColorFn, message, resolveIndicatorOptions(indicator));
 		this.kind = kind;
 	}
 
@@ -28,6 +33,10 @@ export class StatusIndicator extends Loader {
 
 	renderSpinnerInBorder(width: number): string {
 		return truncateToWidth(this.getRenderedIndicator(), width, "");
+	}
+
+	override setIndicator(indicator?: WorkingIndicatorOptions): void {
+		super.setIndicator(resolveIndicatorOptions(indicator));
 	}
 
 	dispose(): void {

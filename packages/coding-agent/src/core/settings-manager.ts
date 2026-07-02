@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile from "proper-lockfile";
 import { CONFIG_DIR_NAME, getAgentDir } from "../config.ts";
+import type { ScreenReaderMode } from "../modes/interactive/accessibility.ts";
 import { normalizePath, resolvePath } from "../utils/paths.ts";
 import { stripBom } from "../utils/text.ts";
 import { DEFAULT_HTTP_IDLE_TIMEOUT_MS, parseHttpIdleTimeoutMs } from "./http-dispatcher.ts";
@@ -1377,6 +1378,10 @@ export class SettingsManager {
 
 	getShowHardwareCursor(): boolean {
 		return this.settings.showHardwareCursor ?? process.env.PI_HARDWARE_CURSOR === "1";
+	}
+
+	getScreenReaderMode(): ScreenReaderMode | undefined {
+		return this.settings.screenReader === true ? "flat" : undefined;
 	}
 
 	setShowHardwareCursor(enabled: boolean): void {

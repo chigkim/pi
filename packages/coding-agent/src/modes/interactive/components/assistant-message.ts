@@ -1,6 +1,16 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import { Container, Markdown, type MarkdownTheme, MouseRegion, Spacer, Text } from "@earendil-works/pi-tui";
+import {
+	Container,
+	Markdown,
+	type MarkdownTheme,
+	MouseRegion,
+	Spacer,
+	Text,
+	visibleWidth,
+	wrapTextWithAnsi,
+} from "@earendil-works/pi-tui";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
+import { isFlatScreenReaderMode, trimScreenReaderBlock } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
 
@@ -78,7 +88,39 @@ export class AssistantMessageComponent extends Container {
 	}
 
 	override render(width: number): string[] {
-		const lines = super.render(width);
+		let lines = super.render(width);
+		if (isFlatScreenReaderMode()) {
+			// trimScreenReaderBlock only blanks whitespace-only lines and strips leading/trailing
+			// blank lines; it doesn't trimEnd() non-blank lines. The label-matching below needs
+			// exact "Assistant:"/"Thinking:" lines, so trim trailing padding on every line too.
+			lines = trimScreenReaderBlock(lines).map((line) => (line.trim() === "" ? "" : line.trimEnd()));
+			if (lines.length > 0 && lines[0] !== "Assistant:" && lines[0] !== "Thinking:") {
+				lines[0] = lines[0].trimStart();
+			}
+			for (let i = 0; i < lines.length; i++) {
+				const label = lines[i];
+				if (label !== "Assistant:" && label !== "Thinking:") {
+					continue;
+				}
+				let bodyIndex = i + 1;
+				while (bodyIndex < lines.length && lines[bodyIndex].trim() === "") {
+					bodyIndex++;
+				}
+				if (bodyIndex >= lines.length) {
+					continue;
+				}
+				const bodyLine = lines[bodyIndex];
+				if (bodyLine === "Assistant:" || bodyLine === "Thinking:") {
+					// Drop the blank run between two adjacent labels without merging them.
+					lines.splice(i + 1, bodyIndex - (i + 1));
+					continue;
+				}
+				const labelPrefix = `${label} `;
+				const firstLineWidth = Math.max(1, width - visibleWidth(labelPrefix));
+				const firstLineParts = wrapTextWithAnsi(bodyLine.trimStart(), firstLineWidth);
+				lines.splice(i, bodyIndex - i + 1, labelPrefix + firstLineParts[0], ...firstLineParts.slice(1));
+			}
+		}
 		if (this.hasToolCalls || lines.length === 0) {
 			return lines;
 		}
@@ -99,19 +141,31 @@ export class AssistantMessageComponent extends Container {
 			(c) => (c.type === "text" && c.text.trim()) || (c.type === "thinking" && c.thinking.trim()),
 		);
 
-		if (hasVisibleContent) {
+		const flatScreenReaderMode = isFlatScreenReaderMode();
+		const horizontalPadding = flatScreenReaderMode ? 0 : this.outputPad;
+
+		if (hasVisibleContent && !flatScreenReaderMode) {
 			this.contentContainer.addChild(new Spacer(1));
 		}
+
+		// In flat screen reader mode, "Assistant:" labels the final response text. When the
+		// message opens with thinking, the "Thinking:" label already announces the assistant
+		// is speaking, so an "Assistant:" line right before it would just be a redundant echo.
+		let assistantLabelAdded = false;
 
 		// Render content in order
 		let thinkingRunIndex = 0;
 		for (let i = 0; i < message.content.length; i++) {
 			const content = message.content[i];
 			if (content.type === "text" && content.text.trim()) {
+				if (flatScreenReaderMode && !assistantLabelAdded) {
+					this.contentContainer.addChild(new Text("Assistant:", 0, 0));
+					assistantLabelAdded = true;
+				}
 				// Assistant text messages with no background - trim the text
 				// Set paddingY=0 to avoid extra spacing before tool executions
 				this.contentContainer.addChild(
-					new Markdown(content.text.trim(), this.outputPad, 0, this.markdownTheme, undefined, {
+					new Markdown(content.text.trim(), horizontalPadding, 0, this.markdownTheme, undefined, {
 						transform: createMarkdownTransform("assistant", this.isStreaming, this.markdownTransformers),
 					}),
 				);
@@ -141,11 +195,14 @@ export class AssistantMessageComponent extends Container {
 
 				const runIndex = thinkingRunIndex++;
 				const hidden = this.thinkingVisibilityOverrides.get(runIndex) ?? this.hideThinkingBlock;
+				if (flatScreenReaderMode) {
+					this.contentContainer.addChild(new Text("Thinking:", 0, 0));
+				}
 				const thinkingComponent = hidden
-					? new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), this.outputPad, 0)
+					? new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), horizontalPadding, 0)
 					: new Markdown(
 							thinkingBlocks.join("\n\n"),
-							this.outputPad,
+							horizontalPadding,
 							0,
 							this.markdownTheme,
 							{
@@ -182,7 +239,7 @@ export class AssistantMessageComponent extends Container {
 		if (message.stopReason === "length") {
 			this.contentContainer.addChild(new Spacer(1));
 			this.contentContainer.addChild(
-				new Text(theme.fg("error", "Response was truncated before completion."), this.outputPad, 0),
+				new Text(theme.fg("error", "Response was truncated before completion."), horizontalPadding, 0),
 			);
 		} else if (!hasToolCalls) {
 			if (message.stopReason === "aborted") {
@@ -191,11 +248,11 @@ export class AssistantMessageComponent extends Container {
 						? message.errorMessage
 						: "Operation aborted";
 				this.contentContainer.addChild(new Spacer(1));
-				this.contentContainer.addChild(new Text(theme.fg("error", abortMessage), this.outputPad, 0));
+				this.contentContainer.addChild(new Text(theme.fg("error", abortMessage), horizontalPadding, 0));
 			} else if (message.stopReason === "error") {
 				const errorMsg = message.errorMessage || "Unknown error";
 				this.contentContainer.addChild(new Spacer(1));
-				this.contentContainer.addChild(new Text(theme.fg("error", `Error: ${errorMsg}`), this.outputPad, 0));
+				this.contentContainer.addChild(new Text(theme.fg("error", `Error: ${errorMsg}`), horizontalPadding, 0));
 			}
 		}
 	}

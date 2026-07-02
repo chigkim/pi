@@ -383,6 +383,7 @@ export const SettingsSchema = Type.Object(
 		showHardwareCursor: Type.Optional(
 			Type.Boolean({ description: "Show the terminal cursor while still positioning it for IME." }),
 		),
+		screenReader: Type.Optional(Type.Boolean({ description: "Enable screen reader mode." })),
 		markdown: Type.Optional(MarkdownSettingsSchema),
 		warnings: Type.Optional(WarningSettingsSchema),
 		codemode: Type.Optional(CodemodeSettingsSchema),

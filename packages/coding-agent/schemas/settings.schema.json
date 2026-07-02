@@ -571,6 +571,10 @@
       "type": "boolean",
       "description": "Show the terminal cursor while still positioning it for IME."
     },
+    "screenReader": {
+      "type": "boolean",
+      "description": "Enable screen reader mode."
+    },
     "markdown": {
       "type": "object",
       "properties": {
