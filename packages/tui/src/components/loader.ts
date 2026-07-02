@@ -6,6 +6,8 @@ export interface LoaderIndicatorOptions {
 	frames?: string[];
 	/** Frame interval in milliseconds for animated indicators. */
 	intervalMs?: number;
+	/** Horizontal text padding. Defaults to 1. */
+	paddingX?: number;
 }
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -32,7 +34,7 @@ export class Loader extends Text {
 		message: string = "Loading...",
 		indicator?: LoaderIndicatorOptions,
 	) {
-		super("", 1, 0);
+		super("", indicator?.paddingX ?? 1, 0);
 		this.ui = ui;
 		this.spinnerColorFn = spinnerColorFn;
 		this.messageColorFn = messageColorFn;
