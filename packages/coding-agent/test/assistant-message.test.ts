@@ -378,6 +378,19 @@ describe("AssistantMessageComponent", () => {
 		expect(lines).toEqual(["Thinking: considering options", "", "Assistant: answer"]);
 	});
 
+	test("suppresses empty HTML comment boundaries in screen reader thinking", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "thinking", thinking: "investigating\n\n<!-- -->" }]),
+		)
+			.render(80)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual(["Thinking: investigating"]);
+	});
+
 	test("labels a hidden thinking placeholder in screen reader mode", () => {
 		initTheme("dark");
 		setScreenReaderMode("flat");
