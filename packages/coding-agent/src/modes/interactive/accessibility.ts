@@ -30,7 +30,10 @@ export function trimScreenReaderBlock(lines: string[]): string[] {
 		return lines;
 	}
 
-	const result = lines.map((line) => (stripAnsi(line).trim() === "" ? "" : line));
+	const result = lines.map((line) => {
+		const text = stripAnsi(line).trim();
+		return text === "" || /^<!--\s*-->$/.test(text) ? "" : line;
+	});
 	while (result.length > 0 && result[0] === "") {
 		result.shift();
 	}
