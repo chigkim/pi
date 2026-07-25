@@ -76,7 +76,9 @@ export class CustomMessageComponent extends Container {
 			try {
 				const component = this.customRenderer(
 					this.message,
-					{ expanded: this._expanded, outputPad: this.outputPad },
+					// Flat screen reader mode drops decorative horizontal padding everywhere,
+					// including inside extension-provided renderers.
+					{ expanded: this._expanded, outputPad: isFlatScreenReaderMode() ? 0 : this.outputPad },
 					theme,
 				);
 				if (component) {
