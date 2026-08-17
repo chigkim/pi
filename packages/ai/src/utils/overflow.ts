@@ -34,6 +34,7 @@ import type { AssistantMessage } from "../types.ts";
  *   input filling the context window.
  * - DashScope/Qwen: "Range of input length should be [1, X]" (HTTP 400 invalid_parameter_error)
  * - Ollama: Some deployments truncate silently, others return errors like "prompt too long; exceeded max context length by X tokens"
+ * - oMLX: reduce context
  */
 const OVERFLOW_PATTERNS = [
 	/prompt (?:is )?too long/i, // Anthropic and z.ai token overflow
@@ -64,6 +65,7 @@ const OVERFLOW_PATTERNS = [
 	// HTTP 413 means request-size overflow regardless of provider or body text.
 	// Match raw SDK errors and formatProviderError's prefix, not a status mentioned in the body.
 	/^(?:[\w -]+ API error \(413\):|413(?:\s|:|$))/i,
+	/reduce context/i, // oMLX
 ];
 
 const CEREBRAS_BODYLESS_OVERFLOW_PATTERN = /^4(?:00|13)\s*(?:status code)?\s*\(no body\)/i;
