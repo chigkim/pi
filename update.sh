@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 git checkout screenreader
 git fetch --all
 git reset --hard origin/screenreader
