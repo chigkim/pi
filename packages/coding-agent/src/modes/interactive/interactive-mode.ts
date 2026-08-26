@@ -142,7 +142,12 @@ import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { stripBom } from "../../utils/text.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
-import { isFlatScreenReaderMode, type ScreenReaderMode, setScreenReaderMode } from "./accessibility.ts";
+import {
+	getHintSeparator,
+	isFlatScreenReaderMode,
+	type ScreenReaderMode,
+	setScreenReaderMode,
+} from "./accessibility.ts";
 import { reportBug } from "./bug-report.ts";
 import { createChatViewport } from "./chat-viewport.ts";
 import { ArminComponent } from "./components/armin.ts";
@@ -860,6 +865,7 @@ export class InteractiveMode {
 			[...slashCommands, ...templateCommands, ...extensionCommands, ...skillCommandList],
 			this.sessionManager.getCwd(),
 			this.fdPath,
+			{ hintSeparator: getHintSeparator(" — ") },
 		);
 	}
 

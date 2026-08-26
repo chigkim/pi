@@ -11,7 +11,7 @@ import {
 	type TUI,
 } from "@earendil-works/pi-tui";
 import { isPreferredProvider } from "../../../core/preferred-providers.ts";
-import { getSelectionPrefix } from "../accessibility.ts";
+import { getSelectionPrefix, isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { getProviderBrandStyle, type ProviderBrandStyle, startBrandAnimation } from "./provider-brand.ts";
@@ -139,7 +139,9 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 		// Initial render
 		this.filterProviders(initialSearchInput ?? "");
 
-		if (tui) this.stopAnimation = startBrandAnimation(tui, () => this.getSelectedBrandStyle() !== undefined);
+		// Screen readers would re-read the selected row on every animation frame.
+		if (tui && !isFlatScreenReaderMode())
+			this.stopAnimation = startBrandAnimation(tui, () => this.getSelectedBrandStyle() !== undefined);
 	}
 
 	override render(width: number): string[] {
@@ -188,7 +190,9 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 			const statusIndicator = formatAuthSelectorProviderStatus(provider);
 			// U+2726 is single-width in every terminal, unlike star emoji or ambiguous-width symbols such as U+2605.
-			const partnerMarker = isPreferredProvider(provider.id) ? theme.fg("muted", " ✦") : "";
+			const partnerMarker = isPreferredProvider(provider.id)
+				? theme.fg("muted", isFlatScreenReaderMode() ? " (partner)" : " ✦")
+				: "";
 			const authTypeLabel = this.showAuthTypeLabels
 				? theme.fg("muted", ` [${formatAuthSelectorProviderType(provider.authType, provider.subscription)}]`)
 				: "";

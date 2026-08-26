@@ -3,6 +3,7 @@
  */
 
 import { Text, type TUI } from "@earendil-works/pi-tui";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { ExtensionSelectorComponent } from "./extension-selector.ts";
 import { radiusShimmer, startBrandAnimation } from "./provider-brand.ts";
@@ -41,11 +42,13 @@ class RadiusLoginMenuComponent extends ExtensionSelectorComponent {
 			},
 		);
 		this.radiusOption = radiusOption;
-		this.stopAnimationTimer = startBrandAnimation(tui, () => this.animating);
+		// Screen readers would re-read the selected row on every animation frame.
+		this.stopAnimationTimer = isFlatScreenReaderMode() ? () => {} : startBrandAnimation(tui, () => this.animating);
 	}
 
 	override render(width: number): string[] {
 		const lines = super.render(width);
+		if (isFlatScreenReaderMode()) return lines;
 		const { label, text } = this.radiusOption;
 		const selectedLine = new Text(theme.fg("accent", "→ ") + theme.fg("accent", label), 1, 0).render(width)[0];
 		const index = selectedLine === undefined ? -1 : lines.indexOf(selectedLine);

@@ -77,4 +77,36 @@ describe("SettingsList", () => {
 		list.handleInput("\x1b[5~");
 		assert.match(list.render(80).join("\n"), /> Setting 6/);
 	});
+
+	it("joins hint segments with a custom separator", () => {
+		const list = new SettingsList(
+			items.map((item) => ({ ...item })),
+			10,
+			testTheme,
+			() => {},
+			() => {},
+			{ enableSearch: true, hintSeparator: " - " },
+		);
+
+		const hint = list.render(120).find((line) => line.includes("Esc to cancel"));
+
+		assert.ok(hint, "expected a hint line");
+		assert.strictEqual(hint.trim(), "Type to search - Enter/Space to change - Esc to cancel");
+		assert.ok(!hint.includes("·"), JSON.stringify(hint));
+	});
+
+	it("uses the middle dot separator by default", () => {
+		const list = new SettingsList(
+			items.map((item) => ({ ...item })),
+			10,
+			testTheme,
+			() => {},
+			() => {},
+		);
+
+		const hint = list.render(120).find((line) => line.includes("Esc to cancel"));
+
+		assert.ok(hint, "expected a hint line");
+		assert.ok(hint.includes("·"), JSON.stringify(hint));
+	});
 });
