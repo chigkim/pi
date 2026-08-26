@@ -253,7 +253,7 @@ export class FooterComponent implements Component {
 		const routed = this.session.routedModel;
 		if (routed) {
 			const level = routed.thinkingLevel ? ` • ${routed.thinkingLevel}` : "";
-			rightSideWithoutProvider += ` → ${routed.model.id}${level}`;
+			rightSideWithoutProvider += `${flatScreenReaderMode ? " to " : " → "}${routed.model.id}${level}`;
 		}
 
 		// Prepend the provider in parentheses if there are multiple providers and there's enough room
