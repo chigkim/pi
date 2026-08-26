@@ -55,6 +55,31 @@ const getSuggestions = (
 ) => provider.getSuggestions(lines, cursorLine, cursorCol, { signal: new AbortController().signal, force });
 
 describe("CombinedAutocompleteProvider", () => {
+	describe("slash command descriptions", () => {
+		const commands = [{ name: "commit", description: "Create a commit", argumentHint: "<message>" }];
+
+		it("joins the argument hint and description with a custom separator", async () => {
+			const provider = new CombinedAutocompleteProvider(commands, "/tmp", null, { hintSeparator: " - " });
+
+			const result = await getSuggestions(provider, ["/commit"], 0, 7);
+
+			const item = result?.items.find((entry) => entry.value === "commit");
+			assert.ok(item, "expected the commit suggestion");
+			assert.strictEqual(item.description, "<message> - Create a commit");
+			assert.ok(!item.description?.includes("—"), JSON.stringify(item));
+		});
+
+		it("uses an em dash separator by default", async () => {
+			const provider = new CombinedAutocompleteProvider(commands, "/tmp");
+
+			const result = await getSuggestions(provider, ["/commit"], 0, 7);
+
+			const item = result?.items.find((entry) => entry.value === "commit");
+			assert.ok(item, "expected the commit suggestion");
+			assert.ok(item.description?.includes("—"), JSON.stringify(item));
+		});
+	});
+
 	describe("extractPathPrefix", () => {
 		it("extracts / from 'hey /' when forced", async () => {
 			const provider = new CombinedAutocompleteProvider([], "/tmp");

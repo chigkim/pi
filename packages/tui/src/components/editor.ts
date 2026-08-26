@@ -571,7 +571,7 @@ export class Editor implements Component, Focusable {
 		if (this.showBorders) {
 			result.push(this.renderTopBorder(width, this.scrollOffset));
 		} else if (this.scrollOffset > 0) {
-			result.push(`↑ ${this.scrollOffset} more`);
+			result.push(`${this.scrollOffset} more above`);
 		}
 		this.renderedLeadingLineCount = result.length;
 
@@ -636,7 +636,7 @@ export class Editor implements Component, Focusable {
 		if (this.showBorders) {
 			result.push(this.renderBottomBorder(width, linesBelow));
 		} else if (linesBelow > 0) {
-			result.push(`↓ ${linesBelow} more`);
+			result.push(`${linesBelow} more below`);
 		}
 		this.renderedTrailingLineCount = result.length - this.renderedLeadingLineCount - visibleLines.length;
 
