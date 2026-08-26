@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { setMarkdownAsciiBordersDefault, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { stripAnsi } from "../../utils/ansi.ts";
 
 export type ScreenReaderMode = "flat";
@@ -7,6 +7,9 @@ let screenReaderMode: ScreenReaderMode | undefined;
 
 export function setScreenReaderMode(mode: ScreenReaderMode | undefined): void {
 	screenReaderMode = mode;
+	// Markdown is constructed in a dozen places; keep its border style in sync here so
+	// it can never drift from the mode.
+	setMarkdownAsciiBordersDefault(mode === "flat");
 }
 
 export function getScreenReaderMode(): ScreenReaderMode | undefined {
@@ -19,6 +22,14 @@ export function isFlatScreenReaderMode(): boolean {
 
 export function getSelectionPrefix(nonFlatDefault = "→ "): string {
 	return isFlatScreenReaderMode() ? "> " : nonFlatDefault;
+}
+
+/**
+ * Separator for inline hint segments. Screen readers announce the em/middle dot
+ * separators used in the default chrome, so flat mode falls back to ASCII.
+ */
+export function getHintSeparator(nonFlatDefault: string): string {
+	return isFlatScreenReaderMode() ? " - " : nonFlatDefault;
 }
 
 /**
