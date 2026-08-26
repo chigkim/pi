@@ -19,6 +19,7 @@ import type {
 	TuiMode,
 	WarningSettings,
 } from "../../../core/settings-manager.ts";
+import { getHintSeparator } from "../accessibility.ts";
 import { getSettingsListTheme, parseAutoThemeSetting, type TerminalTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyDisplayText } from "./keybinding-hints.ts";
@@ -161,6 +162,7 @@ class WarningSettingsSubmenu extends Container {
 				}
 			},
 			onCancel,
+			{ hintSeparator: getHintSeparator(" · ") },
 		);
 
 		this.addChild(this.settingsList);
@@ -389,6 +391,7 @@ class ThemeSubmenu extends Container {
 				}
 			},
 			() => this.cancel(),
+			{ hintSeparator: getHintSeparator(" · ") },
 		);
 		content.addChild(settingsList);
 		this.setContent(content, settingsList);
@@ -932,7 +935,7 @@ export class SettingsSelectorComponent extends Container {
 				}
 			},
 			callbacks.onCancel,
-			{ enableSearch: true },
+			{ enableSearch: true, hintSeparator: getHintSeparator(" · ") },
 		);
 
 		this.addChild(this.settingsList);

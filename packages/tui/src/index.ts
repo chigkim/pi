@@ -7,6 +7,7 @@ export {
 	type AutocompleteProvider,
 	type AutocompleteSuggestions,
 	CombinedAutocompleteProvider,
+	type CombinedAutocompleteProviderOptions,
 	type SlashCommand,
 } from "./autocomplete.ts";
 // Components
@@ -17,7 +18,14 @@ export { HStack } from "./components/h-stack.ts";
 export { Image, type ImageOptions, type ImageTheme } from "./components/image.ts";
 export { Input } from "./components/input.ts";
 export { Loader, type LoaderIndicatorOptions } from "./components/loader.ts";
-export { type DefaultTextStyle, Markdown, type MarkdownOptions, type MarkdownTheme } from "./components/markdown.ts";
+export {
+	type DefaultTextStyle,
+	getMarkdownAsciiBordersDefault,
+	Markdown,
+	type MarkdownOptions,
+	type MarkdownTheme,
+	setMarkdownAsciiBordersDefault,
+} from "./components/markdown.ts";
 export { MouseRegion, type MouseRegionHandler } from "./components/mouse-region.ts";
 export {
 	ScrollView,

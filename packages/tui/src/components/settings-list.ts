@@ -33,6 +33,11 @@ export interface SettingsListTheme {
 
 export interface SettingsListOptions {
 	enableSearch?: boolean;
+	/**
+	 * Separator between hint segments (default: " · "). Screen readers announce
+	 * the middle dot, so accessible renderers pass an ASCII separator instead.
+	 */
+	hintSeparator?: string;
 }
 
 export class SettingsList implements Component {
@@ -46,6 +51,7 @@ export class SettingsList implements Component {
 	private onCancel: () => void;
 	private searchInput?: Input;
 	private searchEnabled: boolean;
+	private hintSeparator: string;
 
 	// Submenu state
 	private submenuComponent: Component | null = null;
@@ -67,6 +73,7 @@ export class SettingsList implements Component {
 		this.onChange = onChange;
 		this.onCancel = onCancel;
 		this.searchEnabled = options.enableSearch ?? false;
+		this.hintSeparator = options.hintSeparator ?? " · ";
 		if (this.searchEnabled) {
 			this.searchInput = new Input();
 		}
@@ -321,9 +328,9 @@ export class SettingsList implements Component {
 		lines.push(
 			truncateToWidth(
 				this.theme.hint(
-					this.searchEnabled
-						? "  Type to search · Enter/Space to change · Esc to cancel"
-						: "  Enter/Space to change · Esc to cancel",
+					`  ${[...(this.searchEnabled ? ["Type to search"] : []), "Enter/Space to change", "Esc to cancel"].join(
+						this.hintSeparator,
+					)}`,
 				),
 				width,
 			),

@@ -752,6 +752,26 @@ describe("Editor component", () => {
 			assert.ok(!lines.some((line) => line.includes("─")));
 			assert.strictEqual(visibleWidth(lines[0]!), 5);
 		});
+
+		it("describes scroll position in words instead of arrows when borders are disabled", () => {
+			const editor = new Editor(createTestTUI(80, 10), defaultEditorTheme, { showBorders: false });
+			editor.setText(Array.from({ length: 10 }, (_, index) => `line ${index}`).join("\n"));
+
+			// Scroll into the middle of the buffer so both indicators are shown.
+			editor.render(20);
+			for (let i = 0; i < 6; i++) editor.handleInput("\x1b[A");
+			const lines = editor.render(20);
+
+			assert.ok(
+				lines.some((line) => /^\d+ more above$/.test(line)),
+				JSON.stringify(lines),
+			);
+			assert.ok(
+				lines.some((line) => /^\d+ more below$/.test(line)),
+				JSON.stringify(lines),
+			);
+			assert.ok(!lines.some((line) => line.includes("\u2191") || line.includes("\u2193")), JSON.stringify(lines));
+		});
 	});
 
 	describe("Grapheme-aware text wrapping", () => {
