@@ -1,5 +1,6 @@
 import { Container, hyperlink, Text, type TUI } from "@earendil-works/pi-tui";
 import { copyToClipboard } from "../../../utils/clipboard.ts";
+import { isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
 
@@ -24,7 +25,8 @@ export class AuthUrlComponent extends Container {
 
 	private setHint(suffix: string): void {
 		const clickHint = process.platform === "darwin" ? "Cmd+click to open" : "Ctrl+click to open";
-		this.hint.setText(`${theme.fg("dim", hyperlink(clickHint, this.url))} ${theme.fg("dim", "•")} ${suffix}`);
+		const separator = isFlatScreenReaderMode() ? "-" : theme.fg("dim", "•");
+		this.hint.setText(`${theme.fg("dim", hyperlink(clickHint, this.url))} ${separator} ${suffix}`);
 		this.tui.requestRender();
 	}
 

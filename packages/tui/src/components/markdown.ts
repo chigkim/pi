@@ -248,6 +248,28 @@ export interface MarkdownOptions {
 	transform?: (markdown: string, availableWidth: number) => string;
 	/** Render supported LaTeX math expressions as Unicode text (default: true). */
 	renderLatex?: boolean;
+	/**
+	 * Draw blockquotes, horizontal rules, and tables with ASCII instead of
+	 * box-drawing characters. Screen readers announce box-drawing runs character by
+	 * character, so flat/accessible renderers opt in here. Defaults to the
+	 * process-wide value set via {@link setMarkdownAsciiBordersDefault}.
+	 */
+	asciiBorders?: boolean;
+}
+
+let asciiBordersDefault = false;
+
+/**
+ * Sets the process-wide default for {@link MarkdownOptions.asciiBorders}. Markdown is
+ * constructed in many places, so the accessible variant is selected globally rather
+ * than threaded through every call site. Individual instances can still override it.
+ */
+export function setMarkdownAsciiBordersDefault(enabled: boolean): void {
+	asciiBordersDefault = enabled;
+}
+
+export function getMarkdownAsciiBordersDefault(): boolean {
+	return asciiBordersDefault;
 }
 
 interface InlineStyleContext {
@@ -287,6 +309,10 @@ export class Markdown implements Component {
 		this.theme = theme;
 		this.defaultTextStyle = defaultTextStyle;
 		this.options = options ? { ...options } : {};
+	}
+
+	private asciiBorders(): boolean {
+		return this.options.asciiBorders ?? asciiBordersDefault;
 	}
 
 	setText(text: string): void {
@@ -625,7 +651,7 @@ export class Markdown implements Component {
 					const styledLine = applyQuoteStyle(quoteLine);
 					const wrappedLines = wrapTextWithAnsi(styledLine, quoteContentWidth);
 					for (const wrappedLine of wrappedLines) {
-						lines.push(this.theme.quoteBorder("│ ") + wrappedLine);
+						lines.push(this.theme.quoteBorder(this.asciiBorders() ? "> " : "│ ") + wrappedLine);
 					}
 				}
 				if (nextTokenType && nextTokenType !== "space") {
@@ -635,7 +661,9 @@ export class Markdown implements Component {
 			}
 
 			case "hr":
-				lines.push(this.theme.hr("─".repeat(Math.min(width, 80))));
+				lines.push(
+					this.theme.hr(this.asciiBorders() ? "-".repeat(Math.min(width, 3)) : "─".repeat(Math.min(width, 80))),
+				);
 				if (nextTokenType && nextTokenType !== "space") {
 					lines.push(""); // Add spacing after horizontal rules (unless space token follows)
 				}
@@ -988,9 +1016,15 @@ export class Markdown implements Component {
 			}
 		}
 
+		// Screen readers announce box-drawing runs character by character, so fall back to
+		// GitHub-style pipe rows (same width budget: 2 + 3(n-1) + 2 = 3n + 1).
+		const ascii = this.asciiBorders();
+
 		// Render top border
-		const topBorderCells = columnWidths.map((w) => "─".repeat(w));
-		lines.push(`┌─${topBorderCells.join("─┬─")}─┐`);
+		if (!ascii) {
+			const topBorderCells = columnWidths.map((w) => "─".repeat(w));
+			lines.push(`┌─${topBorderCells.join("─┬─")}─┐`);
+		}
 
 		// Render header with wrapping
 		const headerCellLines: string[][] = token.header.map((cell, i) => {
@@ -1005,12 +1039,12 @@ export class Markdown implements Component {
 				const padded = text + " ".repeat(Math.max(0, columnWidths[colIdx] - visibleWidth(text)));
 				return this.theme.bold(padded);
 			});
-			lines.push(`│ ${rowParts.join(" │ ")} │`);
+			lines.push(ascii ? `| ${rowParts.join(" | ")} |` : `│ ${rowParts.join(" │ ")} │`);
 		}
 
 		// Render separator
-		const separatorCells = columnWidths.map((w) => "─".repeat(w));
-		const separatorLine = `├─${separatorCells.join("─┼─")}─┤`;
+		const separatorCells = columnWidths.map((w) => (ascii ? "-".repeat(w) : "─".repeat(w)));
+		const separatorLine = ascii ? `| ${separatorCells.join(" | ")} |` : `├─${separatorCells.join("─┼─")}─┤`;
 		lines.push(separatorLine);
 
 		// Render rows with wrapping
@@ -1027,17 +1061,19 @@ export class Markdown implements Component {
 					const text = cellLines[lineIdx] || "";
 					return text + " ".repeat(Math.max(0, columnWidths[colIdx] - visibleWidth(text)));
 				});
-				lines.push(`│ ${rowParts.join(" │ ")} │`);
+				lines.push(ascii ? `| ${rowParts.join(" | ")} |` : `│ ${rowParts.join(" │ ")} │`);
 			}
 
-			if (rowIndex < token.rows.length - 1) {
+			if (!ascii && rowIndex < token.rows.length - 1) {
 				lines.push(separatorLine);
 			}
 		}
 
 		// Render bottom border
-		const bottomBorderCells = columnWidths.map((w) => "─".repeat(w));
-		lines.push(`└─${bottomBorderCells.join("─┴─")}─┘`);
+		if (!ascii) {
+			const bottomBorderCells = columnWidths.map((w) => "─".repeat(w));
+			lines.push(`└─${bottomBorderCells.join("─┴─")}─┘`);
+		}
 
 		if (nextTokenType && nextTokenType !== "space") {
 			lines.push(""); // Add spacing after table
