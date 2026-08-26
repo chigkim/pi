@@ -2,7 +2,12 @@ import assert from "node:assert";
 import { afterEach, describe, it } from "node:test";
 import type { Terminal as XtermTerminalType } from "@xterm/headless";
 import { Chalk } from "chalk";
-import { Markdown, type MarkdownTheme } from "../src/components/markdown.ts";
+import {
+	getMarkdownAsciiBordersDefault,
+	Markdown,
+	type MarkdownTheme,
+	setMarkdownAsciiBordersDefault,
+} from "../src/components/markdown.ts";
 import { resetCapabilitiesCache, setCapabilities } from "../src/terminal-image.ts";
 import type { Component, TUI } from "../src/tui.ts";
 import { TuiMainScreen } from "../src/tui-main-screen.ts";
@@ -1755,6 +1760,94 @@ bar`,
 			const complete = new Markdown("```ts\nconst x = 1;\n```", 0, 0, defaultMarkdownTheme);
 
 			assert.strictEqual(partial.render(80).length, complete.render(80).length);
+		});
+	});
+
+	describe("ASCII borders (screen reader mode)", () => {
+		const VERTICAL = "│";
+		const HORIZONTAL = "─";
+		const BOX_DRAWING = /[─-╿]/;
+
+		afterEach(() => {
+			setMarkdownAsciiBordersDefault(false);
+		});
+
+		it("renders blockquotes with a > prefix instead of a vertical bar", () => {
+			const markdown = new Markdown("> quoted text", 0, 0, defaultMarkdownTheme, undefined, {
+				asciiBorders: true,
+			});
+
+			const lines = markdown.render(40).map((line) => stripAnsi(line).trimEnd());
+
+			assert.ok(
+				lines.some((line) => line.startsWith("> quoted text")),
+				JSON.stringify(lines),
+			);
+			assert.ok(!lines.some((line) => line.includes(VERTICAL)), JSON.stringify(lines));
+		});
+
+		it("renders horizontal rules as ---", () => {
+			const markdown = new Markdown("a\n\n---\n\nb", 0, 0, defaultMarkdownTheme, undefined, {
+				asciiBorders: true,
+			});
+
+			const lines = markdown.render(80).map((line) => stripAnsi(line).trimEnd());
+
+			assert.ok(lines.includes("---"), JSON.stringify(lines));
+			assert.ok(!lines.some((line) => line.includes(HORIZONTAL)), JSON.stringify(lines));
+		});
+
+		it("renders tables as pipe rows without box drawing or row dividers", () => {
+			const markdown = new Markdown(
+				"| Name | Age |\n| --- | --- |\n| Alice | 30 |\n| Bob | 25 |",
+				0,
+				0,
+				defaultMarkdownTheme,
+				undefined,
+				{ asciiBorders: true },
+			);
+
+			const lines = markdown.render(80).map((line) => stripAnsi(line).trimEnd());
+
+			for (const line of lines) {
+				assert.ok(!BOX_DRAWING.test(line), `Unexpected box drawing in ${JSON.stringify(line)}`);
+			}
+			const rows = lines.filter((line) => line.startsWith("|"));
+			// Header, separator, then one row per record - no dividers between data rows.
+			assert.strictEqual(rows.length, 4, JSON.stringify(lines));
+			assert.ok(rows[0].includes("Name") && rows[0].includes("Age"), JSON.stringify(rows));
+			assert.ok(/^\| -+ \| -+ \|$/.test(rows[1]), JSON.stringify(rows));
+			assert.ok(rows[2].includes("Alice"), JSON.stringify(rows));
+			assert.ok(rows[3].includes("Bob"), JSON.stringify(rows));
+		});
+
+		it("uses the process-wide default when no per-instance option is set", () => {
+			setMarkdownAsciiBordersDefault(true);
+			assert.strictEqual(getMarkdownAsciiBordersDefault(), true);
+
+			const lines = new Markdown("> quoted text", 0, 0, defaultMarkdownTheme)
+				.render(40)
+				.map((line) => stripAnsi(line).trimEnd());
+
+			assert.ok(
+				lines.some((line) => line.startsWith("> quoted text")),
+				JSON.stringify(lines),
+			);
+		});
+
+		it("lets a per-instance option override the process-wide default", () => {
+			setMarkdownAsciiBordersDefault(true);
+
+			const lines = new Markdown("> quoted text", 0, 0, defaultMarkdownTheme, undefined, {
+				asciiBorders: false,
+			})
+				.render(40)
+				.map((line) => stripAnsi(line).trimEnd());
+
+			assert.ok(
+				lines.some((line) => line.includes(VERTICAL)),
+				JSON.stringify(lines),
+			);
 		});
 	});
 });

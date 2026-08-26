@@ -275,15 +275,31 @@ export interface AutocompleteProvider {
 }
 
 // Combined provider that handles both slash commands and file paths
+export interface CombinedAutocompleteProviderOptions {
+	/**
+	 * Separator between a slash command's argument hint and its description
+	 * (default: " — "). Screen readers announce the em dash, so accessible
+	 * renderers pass an ASCII separator instead.
+	 */
+	hintSeparator?: string;
+}
+
 export class CombinedAutocompleteProvider implements AutocompleteProvider {
 	private commands: (SlashCommand | AutocompleteItem)[];
 	private basePath: string;
 	private fdPath: string | null;
+	private hintSeparator: string;
 
-	constructor(commands: (SlashCommand | AutocompleteItem)[] = [], basePath: string, fdPath: string | null = null) {
+	constructor(
+		commands: (SlashCommand | AutocompleteItem)[] = [],
+		basePath: string,
+		fdPath: string | null = null,
+		options: CombinedAutocompleteProviderOptions = {},
+	) {
 		this.commands = commands;
 		this.basePath = basePath;
 		this.fdPath = fdPath;
+		this.hintSeparator = options.hintSeparator ?? " — ";
 	}
 
 	async getSuggestions(
@@ -319,7 +335,7 @@ export class CombinedAutocompleteProvider implements AutocompleteProvider {
 					const name = "name" in cmd ? cmd.name : cmd.value;
 					const hint = "argumentHint" in cmd && cmd.argumentHint ? cmd.argumentHint : undefined;
 					const desc = cmd.description ?? "";
-					const fullDesc = hint ? (desc ? `${hint} — ${desc}` : hint) : desc;
+					const fullDesc = hint ? (desc ? `${hint}${this.hintSeparator}${desc}` : hint) : desc;
 					return {
 						name,
 						label: name,
