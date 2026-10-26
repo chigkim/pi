@@ -147,6 +147,7 @@ import {
 	isFlatScreenReaderMode,
 	type ScreenReaderMode,
 	setScreenReaderMode,
+	setScreenReaderTerminalWrap,
 } from "./accessibility.ts";
 import { reportBug } from "./bug-report.ts";
 import { createChatViewport } from "./chat-viewport.ts";
@@ -673,6 +674,7 @@ export class InteractiveMode {
 		this.ui = createInteractiveTuiReference(() => this.renderer);
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
 		this.ui.setTrimTrailingWhitespace(isFlatScreenReaderMode());
+		this.applyScreenReaderTerminalWrap(this.renderer);
 		this.headerContainer = new Container();
 		this.loadedResourcesContainer = new Container();
 		this.chatContainer = new Container();
@@ -953,6 +955,13 @@ export class InteractiveMode {
 		this.ui.stop({ preserveScreen: this.renderer.mode === "fullscreen" });
 	}
 
+	/** Only the main-screen renderer supports terminal wrapping, so fullscreen keeps wrapping text itself. */
+	private applyScreenReaderTerminalWrap(ui: TUI): void {
+		const enabled = isFlatScreenReaderMode() && ui.mode === "regular";
+		setScreenReaderTerminalWrap(enabled);
+		ui.setTerminalWrap(enabled);
+	}
+
 	private switchTuiMode(mode: TuiMode, restoreProgress = true, startRenderer = true): boolean {
 		const previousUi = this.renderer;
 		if (mode === previousUi.mode) return true;
@@ -984,6 +993,7 @@ export class InteractiveMode {
 		});
 		nextUi.setClearOnShrink(clearOnShrink);
 		nextUi.setTrimTrailingWhitespace(isFlatScreenReaderMode());
+		this.applyScreenReaderTerminalWrap(nextUi);
 		nextUi.onDebug = onDebug;
 		if (nextUi instanceof TuiMainScreen && this.mainScreenRenderState) {
 			nextUi.restoreRenderState(this.mainScreenRenderState);

@@ -11,7 +11,12 @@ import {
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
-import { isFlatScreenReaderMode, trimScreenReaderBlock } from "../accessibility.ts";
+import {
+	isFlatScreenReaderMode,
+	isScreenReaderTerminalWrap,
+	trimOutputText,
+	trimScreenReaderBlock,
+} from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
 
@@ -109,11 +114,12 @@ export class AssistantMessageComponent extends Container {
 	override render(width: number): string[] {
 		let lines = super.render(width);
 		if (isFlatScreenReaderMode()) {
+			const terminalWrap = isScreenReaderTerminalWrap();
 			// trimScreenReaderBlock only blanks whitespace-only lines and strips leading/trailing
 			// blank lines; it doesn't trimEnd() non-blank lines. The label-matching below needs
 			// exact "Assistant:"/"Thinking:" lines, so trim trailing padding on every line too.
 			lines = trimScreenReaderBlock(lines).map((line) => (line.trim() === "" ? "" : line.trimEnd()));
-			if (lines.length > 0 && lines[0] !== "Assistant:" && lines[0] !== "Thinking:") {
+			if (lines.length > 0 && lines[0] !== "Assistant:" && lines[0] !== "Thinking:" && !terminalWrap) {
 				lines[0] = lines[0].trimStart();
 			}
 			for (let i = 0; i < lines.length; i++) {
@@ -135,6 +141,11 @@ export class AssistantMessageComponent extends Container {
 					continue;
 				}
 				const labelPrefix = `${label} `;
+				if (terminalWrap) {
+					// The terminal wraps the merged line, so the body keeps its indentation and is not re-wrapped.
+					lines.splice(i, bodyIndex - i + 1, labelPrefix + bodyLine);
+					continue;
+				}
 				const firstLineWidth = Math.max(1, width - visibleWidth(labelPrefix));
 				const firstLineParts = wrapTextWithAnsi(bodyLine.trimStart(), firstLineWidth);
 				lines.splice(i, bodyIndex - i + 1, labelPrefix + firstLineParts[0], ...firstLineParts.slice(1));
@@ -166,6 +177,8 @@ export class AssistantMessageComponent extends Container {
 		};
 
 		const flatScreenReaderMode = isFlatScreenReaderMode();
+		// With terminal wrapping, model text is shown as written: no Markdown rendering, wrapping, or indentation.
+		const terminalWrap = isScreenReaderTerminalWrap();
 		const horizontalPadding = flatScreenReaderMode ? 0 : this.outputPad;
 
 		// Spacers are added lazily, right before the next visible content block. This puts a blank
@@ -199,20 +212,22 @@ export class AssistantMessageComponent extends Container {
 				// Set paddingY=0 to avoid extra spacing before tool executions
 				const text = content.text.trim();
 				addVisibleChild(
-					markdownBlock(
-						"text",
-						text,
-						() =>
-							new Markdown(text, horizontalPadding, 0, this.markdownTheme, undefined, {
-								transform: createMarkdownTransform(
-									"assistant",
-									() => this.isStreaming,
-									this.markdownTransformers,
-									this.messageId,
-									this.timestamp,
-								),
-							}),
-					),
+					terminalWrap
+						? new Text(trimOutputText(content.text), 0, 0)
+						: markdownBlock(
+								"text",
+								text,
+								() =>
+									new Markdown(text, horizontalPadding, 0, this.markdownTheme, undefined, {
+										transform: createMarkdownTransform(
+											"assistant",
+											() => this.isStreaming,
+											this.markdownTransformers,
+											this.messageId,
+											this.timestamp,
+										),
+									}),
+							),
 				);
 			} else if (content.type === "thinking") {
 				const thinkingBlocks: string[] = [];
@@ -221,7 +236,9 @@ export class AssistantMessageComponent extends Container {
 					if (thinkingContent.type !== "thinking") {
 						break;
 					}
-					const thinking = thinkingContent.thinking.trim();
+					const thinking = terminalWrap
+						? trimOutputText(thinkingContent.thinking)
+						: thinkingContent.thinking.trim();
 					if (thinking) {
 						thinkingBlocks.push(thinking);
 					}
@@ -244,30 +261,32 @@ export class AssistantMessageComponent extends Container {
 				const thinking = thinkingBlocks.join("\n\n");
 				const thinkingComponent = hidden
 					? new Text(theme.italic(theme.fg("thinkingText", this.hiddenThinkingLabel)), horizontalPadding, 0)
-					: markdownBlock(
-							"thinking",
-							thinking,
-							() =>
-								new Markdown(
-									thinking,
-									horizontalPadding,
-									0,
-									this.markdownTheme,
-									{
-										color: (text: string) => theme.fg("thinkingText", text),
-										italic: true,
-									},
-									{
-										transform: createMarkdownTransform(
-											"assistant-thinking",
-											() => this.isStreaming,
-											this.markdownTransformers,
-											this.messageId,
-											this.timestamp,
-										),
-									},
-								),
-						);
+					: terminalWrap
+						? new Text(theme.italic(theme.fg("thinkingText", thinking)), 0, 0)
+						: markdownBlock(
+								"thinking",
+								thinking,
+								() =>
+									new Markdown(
+										thinking,
+										horizontalPadding,
+										0,
+										this.markdownTheme,
+										{
+											color: (text: string) => theme.fg("thinkingText", text),
+											italic: true,
+										},
+										{
+											transform: createMarkdownTransform(
+												"assistant-thinking",
+												() => this.isStreaming,
+												this.markdownTransformers,
+												this.messageId,
+												this.timestamp,
+											),
+										},
+									),
+							);
 				addVisibleChild(
 					new MouseRegion(thinkingComponent, (event) => {
 						if (event.type !== "click" || event.button !== "left") return undefined;

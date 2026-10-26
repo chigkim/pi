@@ -1,4 +1,9 @@
-import { setMarkdownAsciiBordersDefault, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import {
+	setComponentWrapping,
+	setMarkdownAsciiBordersDefault,
+	truncateToWidth,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 import { stripAnsi } from "../../utils/ansi.ts";
 
 export type ScreenReaderMode = "flat";
@@ -18,6 +23,40 @@ export function getScreenReaderMode(): ScreenReaderMode | undefined {
 
 export function isFlatScreenReaderMode(): boolean {
 	return screenReaderMode === "flat";
+}
+
+let terminalWrap = false;
+
+/**
+ * In flat mode on the main screen, pi leaves line wrapping to the terminal: text is not wrapped or indented to fit
+ * the width, so a screen reader gets each line of the model output as one line. The renderer must support it
+ * (see `TUI.setTerminalWrap`). Text, Markdown, and Box are constructed in many places, so their wrapping is
+ * switched here.
+ */
+export function setScreenReaderTerminalWrap(enabled: boolean): void {
+	terminalWrap = enabled;
+	setComponentWrapping(!enabled);
+}
+
+export function isScreenReaderTerminalWrap(): boolean {
+	return terminalWrap;
+}
+
+/**
+ * Trim model or tool output for display. With terminal wrapping, only leading blank lines and trailing whitespace
+ * go, so the first line keeps its indentation. Otherwise all surrounding whitespace goes.
+ */
+export function trimOutputText(text: string): string {
+	return terminalWrap ? text.replace(/^(?:[ \t]*\r?\n)+/, "").trimEnd() : text.trim();
+}
+
+/** Body line merged after a label. With terminal wrapping, it keeps its indentation and is not cut to the width. */
+function mergeLabelLine(label: string, body: string, width: number | undefined): string {
+	if (terminalWrap) {
+		return `${label} ${body.trimEnd()}`;
+	}
+	const mergedLine = `${label} ${body.trim()}`;
+	return width !== undefined && visibleWidth(mergedLine) > width ? truncateToWidth(mergedLine, width, "") : mergedLine;
 }
 
 export function getSelectionPrefix(nonFlatDefault = "→ "): string {
@@ -70,9 +109,7 @@ export function mergeScreenReaderLabelWithBody(lines: string[], width?: number):
 		return trimmed;
 	}
 
-	const mergedLine = `${stripAnsi(trimmed[labelIndex]!).trimEnd()} ${stripAnsi(trimmed[bodyIndex]!).trim()}`;
-	const line =
-		width !== undefined && visibleWidth(mergedLine) > width ? truncateToWidth(mergedLine, width, "") : mergedLine;
+	const line = mergeLabelLine(stripAnsi(trimmed[labelIndex]!).trimEnd(), stripAnsi(trimmed[bodyIndex]!), width);
 	return [...trimmed.slice(0, labelIndex), line, ...trimmed.slice(bodyIndex + 1)];
 }
 
@@ -103,16 +140,13 @@ export function mergeScreenReaderLabels(lines: string[], labels: string[], width
 		if (bodyIndex >= result.length) {
 			continue;
 		}
-		const bodyLine = stripAnsi(result[bodyIndex]!).trim();
-		if (labels.includes(bodyLine)) {
+		const bodyLine = stripAnsi(result[bodyIndex]!);
+		if (labels.includes(bodyLine.trim())) {
 			// Drop the blank run between two adjacent labels without merging them.
 			result.splice(i + 1, bodyIndex - (i + 1));
 			continue;
 		}
-		const mergedLine = `${label} ${bodyLine}`;
-		const line =
-			width !== undefined && visibleWidth(mergedLine) > width ? truncateToWidth(mergedLine, width, "") : mergedLine;
-		result.splice(i, bodyIndex - i + 1, line);
+		result.splice(i, bodyIndex - i + 1, mergeLabelLine(label, bodyLine, width));
 	}
 	return trimScreenReaderBlock(result);
 }
