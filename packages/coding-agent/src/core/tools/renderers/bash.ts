@@ -7,6 +7,7 @@
  */
 
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import { trimOutputText } from "../../../modes/interactive/accessibility.ts";
 import { keyHint } from "../../../modes/interactive/components/keybinding-hints.ts";
 import { VisualLinePreview } from "../../../modes/interactive/components/visual-truncate.ts";
 import { theme } from "../../../modes/interactive/theme/theme.ts";
@@ -36,7 +37,7 @@ function rebuildBashResultRenderComponent(
 ): void {
 	component.clear();
 
-	let output = getTextOutput(result as any, showImages).trim();
+	let output = trimOutputText(getTextOutput(result as any, showImages));
 	const truncation = result.details?.truncation;
 	const fullOutputPath = result.details?.fullOutputPath;
 	if (!options.isPartial && truncation?.truncated && fullOutputPath && output.endsWith("]")) {

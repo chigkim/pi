@@ -6,7 +6,7 @@ import {
 	type TuiMouseDispatchResult,
 	type TuiMouseEvent,
 } from "../tui.ts";
-import { flattenLines, visibleWidth } from "../utils.ts";
+import { flattenLines, getComponentWrapping, visibleWidth } from "../utils.ts";
 
 type RenderCache = {
 	childLines: readonly string[];
@@ -75,9 +75,10 @@ export class Box implements Component {
 	}
 
 	handleMouse(event: TuiMouseEvent): TuiMouseDispatchResult | undefined {
-		const contentWidth = Math.max(1, event.width - this.paddingX * 2);
+		const paddingX = getComponentWrapping() ? this.paddingX : 0;
+		const contentWidth = Math.max(1, event.width - paddingX * 2);
 		const contentY = event.y - this.paddingY;
-		const contentX = event.x - this.paddingX;
+		const contentX = event.x - paddingX;
 		if (contentY < 0 || contentX < 0 || contentX >= contentWidth) return undefined;
 
 		const layout =
@@ -92,8 +93,10 @@ export class Box implements Component {
 			return [];
 		}
 
-		const contentWidth = Math.max(1, width - this.paddingX * 2);
-		const leftPad = " ".repeat(this.paddingX);
+		// Without component wrapping, content is shown as written, without margins.
+		const paddingX = getComponentWrapping() ? this.paddingX : 0;
+		const contentWidth = Math.max(1, width - paddingX * 2);
+		const leftPad = " ".repeat(paddingX);
 
 		// Keep the child lines unpadded: unchanged children keep their line array, so the cache check
 		// below is one identity comparison. Padding here would create new strings every frame.
