@@ -483,6 +483,8 @@ export interface TUI extends Component {
 	setClearOnShrink(enabled: boolean): void;
 	getTrimTrailingWhitespace(): boolean;
 	setTrimTrailingWhitespace(enabled: boolean): void;
+	getTerminalWrap(): boolean;
+	setTerminalWrap(enabled: boolean): void;
 	setFocus(component: Component | null): void;
 	showOverlay(component: Component, options?: OverlayOptions): OverlayHandle;
 	hideOverlay(): void;
@@ -528,6 +530,7 @@ export abstract class TuiBase extends Container implements TUI {
 	private showHardwareCursor = false;
 	private clearOnShrink = false;
 	private trimTrailingWhitespace = false;
+	private terminalWrap = false;
 	protected fullRedrawCount = 0;
 	protected stopped = false;
 	/**
@@ -635,6 +638,20 @@ export abstract class TuiBase extends Container implements TUI {
 	setTrimTrailingWhitespace(enabled: boolean): void {
 		if (this.trimTrailingWhitespace === enabled) return;
 		this.trimTrailingWhitespace = enabled;
+		this.requestRender();
+	}
+
+	getTerminalWrap(): boolean {
+		return this.terminalWrap;
+	}
+
+	/**
+	 * Set whether rendered lines may be wider than the terminal. When true, the terminal wraps such lines, and the
+	 * renderer accounts for the rows they take. Only the main-screen renderer supports this; fullscreen ignores it.
+	 */
+	setTerminalWrap(enabled: boolean): void {
+		if (this.terminalWrap === enabled) return;
+		this.terminalWrap = enabled;
 		this.requestRender();
 	}
 

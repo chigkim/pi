@@ -1,6 +1,6 @@
-import { Container, Markdown, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { Container, Markdown, type MarkdownTheme, Text } from "@earendil-works/pi-tui";
 import type { MarkdownTransformer } from "../../../core/extensions/types.ts";
-import { isFlatScreenReaderMode } from "../accessibility.ts";
+import { isFlatScreenReaderMode, isScreenReaderTerminalWrap } from "../accessibility.ts";
 import { getMarkdownTheme, theme } from "../theme/theme.ts";
 import { createMarkdownTransform } from "./markdown-transform.ts";
 
@@ -38,6 +38,11 @@ export class UserMessageComponent extends Container {
 
 	private rebuild(): void {
 		this.clear();
+		if (isScreenReaderTerminalWrap()) {
+			// The terminal wraps the text, so it is shown as typed.
+			this.addChild(new Text(`User: ${this.text}`, 0, 0));
+			return;
+		}
 		if (isFlatScreenReaderMode()) {
 			this.addChild(new Markdown(`User: ${this.text}`, 0, 0, this.markdownTheme));
 			return;
@@ -62,6 +67,11 @@ export class UserMessageComponent extends Container {
 				},
 			),
 		);
+	}
+
+	override invalidate(): void {
+		super.invalidate();
+		this.rebuild();
 	}
 
 	override render(width: number): string[] {

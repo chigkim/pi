@@ -1,7 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { type TuiMouseEvent, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, test } from "vitest";
-import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
+import { setScreenReaderMode, setScreenReaderTerminalWrap } from "../src/modes/interactive/accessibility.ts";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.ts";
 import { UserMessageComponent } from "../src/modes/interactive/components/user-message.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
@@ -37,6 +37,7 @@ function createAssistantMessage(
 describe("AssistantMessageComponent", () => {
 	afterEach(() => {
 		setScreenReaderMode(undefined);
+		setScreenReaderTerminalWrap(false);
 	});
 
 	test("adds OSC 133 zone markers to assistant messages without tool calls", () => {
@@ -417,6 +418,45 @@ describe("AssistantMessageComponent", () => {
 			.map((line) => stripAnsi(line));
 
 		expect(lines).toEqual(["Thinking: mulling"]);
+	});
+
+	test("shows model text as written with screen reader terminal wrapping", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+
+		const text =
+			"Only if the text gets smaller on screen. What matters is the size of the text.\n\n- Make the font smaller.\n    - In Windows Terminal, press Ctrl+minus to make the font smaller.";
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "\n  indented thought that is longer than the width\n" },
+				{ type: "text", text },
+			]),
+		)
+			.render(20)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual([
+			"Thinking:   indented thought that is longer than the width",
+			"",
+			"Assistant: Only if the text gets smaller on screen. What matters is the size of the text.",
+			"",
+			"- Make the font smaller.",
+			"    - In Windows Terminal, press Ctrl+minus to make the font smaller.",
+		]);
+	});
+
+	test("shows user text as typed with screen reader terminal wrapping", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+
+		// Text pads short lines to the width. The TUI trims that padding in flat mode.
+		const lines = new UserMessageComponent("a line that is longer than the width\n  indented")
+			.render(20)
+			.map((line) => stripAnsi(line).trimEnd());
+
+		expect(lines.filter((line) => line !== "")).toEqual(["User: a line that is longer than the width", "  indented"]);
 	});
 
 	test("renders screen reader blank lines as empty strings", () => {

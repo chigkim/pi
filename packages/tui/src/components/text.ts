@@ -1,5 +1,13 @@
 import type { Component } from "../tui.ts";
-import { applyBackgroundToLine, flattenLines, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
+import {
+	applyBackgroundToLine,
+	expandTabs,
+	flattenLines,
+	getComponentWrapping,
+	splitTextWithAnsi,
+	visibleWidth,
+	wrapTextWithAnsi,
+} from "../utils.ts";
 
 /**
  * Text component - displays multi-line text with word wrapping
@@ -13,6 +21,7 @@ export class Text implements Component {
 	// Cache for rendered output
 	private cachedText?: string;
 	private cachedWidth?: number;
+	private cachedWrap?: boolean;
 	private cachedLines?: string[];
 
 	constructor(text: string = "", paddingX: number = 1, paddingY: number = 1, customBgFn?: (text: string) => string) {
@@ -48,8 +57,9 @@ export class Text implements Component {
 	}
 
 	render(width: number): string[] {
+		const wrap = getComponentWrapping();
 		// Check cache
-		if (this.cachedLines && this.cachedText === this.text && this.cachedWidth === width) {
+		if (this.cachedLines && this.cachedText === this.text && this.cachedWidth === width && this.cachedWrap === wrap) {
 			return this.cachedLines;
 		}
 
@@ -58,19 +68,20 @@ export class Text implements Component {
 			const result: string[] = [];
 			this.cachedText = this.text;
 			this.cachedWidth = width;
+			this.cachedWrap = wrap;
 			this.cachedLines = result;
 			return result;
 		}
 
-		// Replace tabs with 3 spaces
-		const normalizedText = this.text.replace(/\t/g, "   ");
+		const normalizedText = expandTabs(this.text);
 
 		// Reduce margins when necessary so content and padding fit within the available width.
-		const paddingX = Math.min(this.paddingX, Math.max(0, Math.floor((width - 1) / 2)));
+		// Without component wrapping, text is shown as written, without margins.
+		const paddingX = wrap ? Math.min(this.paddingX, Math.max(0, Math.floor((width - 1) / 2))) : 0;
 		const contentWidth = Math.max(1, width - paddingX * 2);
 
 		// Wrap text (this preserves ANSI codes but does NOT pad)
-		const wrappedLines = wrapTextWithAnsi(normalizedText, contentWidth);
+		const wrappedLines = wrap ? wrapTextWithAnsi(normalizedText, contentWidth) : splitTextWithAnsi(normalizedText);
 
 		// Add margins and background to each line
 		const leftMargin = " ".repeat(paddingX);
@@ -106,6 +117,7 @@ export class Text implements Component {
 		// Update cache
 		this.cachedText = this.text;
 		this.cachedWidth = width;
+		this.cachedWrap = wrap;
 		this.cachedLines = result;
 
 		return result.length > 0 ? result : [""];

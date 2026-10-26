@@ -3,7 +3,15 @@ import markedCjkFriendly from "marked-cjk-friendly";
 import { renderLatex } from "../latex.ts";
 import { getCapabilities, hyperlink, isImageLine } from "../terminal-image.ts";
 import type { Component } from "../tui.ts";
-import { applyBackgroundToLine, flattenLines, visibleWidth, wrapTextWithAnsi } from "../utils.ts";
+import {
+	applyBackgroundToLine,
+	expandTabs,
+	flattenLines,
+	getComponentWrapping,
+	splitTextWithAnsi,
+	visibleWidth,
+	wrapTextWithAnsi,
+} from "../utils.ts";
 
 const STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/;
 
@@ -289,6 +297,7 @@ export class Markdown implements Component {
 	// Cache for rendered output
 	private cachedText?: string;
 	private cachedWidth?: number;
+	private cachedWrap?: boolean;
 	private cachedLines?: string[];
 	// Parsed tokens depend only on the source, so they survive theme and width invalidation. Held weakly: a token tree is
 	// about ten times the size of its source, and every message of a long transcript keeps a Markdown component. The
@@ -327,8 +336,22 @@ export class Markdown implements Component {
 	}
 
 	render(width: number): string[] {
+		const wrap = getComponentWrapping();
 		// Check cache
-		if (this.cachedLines && this.cachedText === this.text && this.cachedWidth === width) {
+		if (this.cachedLines && this.cachedText === this.text && this.cachedWidth === width && this.cachedWrap === wrap) {
+			return this.cachedLines;
+		}
+		this.cachedWrap = wrap;
+
+		if (!wrap) {
+			// Show the source as written: no rendering, transform, wrapping, or margins.
+			const color = this.defaultTextStyle?.color;
+			const lines = this.text.trim() === "" ? [] : splitTextWithAnsi(expandTabs(this.text));
+			const contentLines = color ? lines.map((line) => color(line)) : lines;
+			const emptyLines = contentLines.length > 0 ? Array.from({ length: this.paddingY }, () => "") : [];
+			this.cachedText = this.text;
+			this.cachedWidth = width;
+			this.cachedLines = [...emptyLines, ...contentLines, ...emptyLines];
 			return this.cachedLines;
 		}
 
@@ -346,8 +369,7 @@ export class Markdown implements Component {
 			return result;
 		}
 
-		// Replace tabs with 3 spaces for consistent rendering
-		const normalizedText = text.replace(/\t/g, "   ");
+		const normalizedText = expandTabs(text);
 
 		// Parse markdown to HTML-like tokens
 		const cached = this.cachedTokens?.deref();

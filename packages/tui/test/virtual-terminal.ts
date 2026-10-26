@@ -185,6 +185,16 @@ export class VirtualTerminal implements Terminal {
 		return lines;
 	}
 
+	/** For each line of the scroll buffer, whether the terminal wrapped the previous line into it. */
+	getWrappedFlags(): boolean[] {
+		const flags: boolean[] = [];
+		const buffer = this.xterm.buffer.active;
+		for (let i = 0; i < buffer.length; i++) {
+			flags.push(buffer.getLine(i)?.isWrapped ?? false);
+		}
+		return flags;
+	}
+
 	/**
 	 * Clear the terminal viewport
 	 */

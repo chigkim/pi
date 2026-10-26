@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { deleteKittyImage, isImageLine } from "./terminal-image.ts";
 import { type TUI, TuiBase, type TuiStopOptions } from "./tui.ts";
-import { visibleWidth } from "./utils.ts";
+import { splitTerminalRows, visibleWidth } from "./utils.ts";
 
 const KITTY_SEQUENCE_PREFIX = "\x1b_G";
 const MAX_RENDER_WRITE_CHARS = 1024 * 1024;
@@ -118,6 +118,7 @@ export interface TuiMainScreenRenderState {
 	hardwareCursorRow: number;
 	maxLinesRendered: number;
 	previousViewportTop: number;
+	previousContinued?: boolean[];
 }
 
 /** TUI implementation that renders into the terminal's main screen and scrollback. */
@@ -131,6 +132,14 @@ export class TuiMainScreen extends TuiBase implements TUI {
 	private hardwareCursorRow = 0;
 	private maxLinesRendered = 0;
 	private previousViewportTop = 0;
+	/**
+	 * With terminal wrapping, previousLines holds terminal rows, and entry i is true when row i continues the
+	 * line of row i - 1. Undefined when no line wrapped.
+	 */
+	private previousContinued: boolean[] | undefined;
+	/** Rows of each line in the last frame, so unchanged lines are not split again. */
+	private terminalRowsCache = new Map<string, string[]>();
+	private terminalRowsCacheWidth = 0;
 
 	captureRenderState(): TuiMainScreenRenderState {
 		return {
@@ -141,6 +150,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			hardwareCursorRow: this.hardwareCursorRow,
 			maxLinesRendered: this.maxLinesRendered,
 			previousViewportTop: this.previousViewportTop,
+			previousContinued: this.previousContinued && [...this.previousContinued],
 		};
 	}
 
@@ -153,6 +163,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		this.hardwareCursorRow = state.hardwareCursorRow;
 		this.maxLinesRendered = state.maxLinesRendered;
 		this.previousViewportTop = state.previousViewportTop;
+		this.previousContinued = state.previousContinued;
 	}
 
 	protected override resetRenderState(): void {
@@ -163,6 +174,42 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		this.hardwareCursorRow = 0;
 		this.maxLinesRendered = 0;
 		this.previousViewportTop = 0;
+		this.previousContinued = undefined;
+	}
+
+	/**
+	 * Split lines wider than the terminal into the rows the terminal wraps them into, so the rest of rendering can
+	 * treat every entry as one row. Rows of one line are written without line breaks between them, so the terminal
+	 * keeps them as one wrapped line.
+	 */
+	private splitWrappedLines(
+		lines: string[],
+		cursorPos: { row: number; col: number } | null,
+		width: number,
+	): { rows: string[]; continued: boolean[] | undefined; cursorPos: { row: number; col: number } | null } {
+		const cache = this.terminalRowsCacheWidth === width ? this.terminalRowsCache : new Map<string, string[]>();
+		const nextCache = new Map<string, string[]>();
+		const rows: string[] = [];
+		const continued: boolean[] = [];
+		let rowCursorPos = cursorPos;
+		let wrapped = false;
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
+			const parts = cache.get(line) ?? (isImageLine(line) ? [line] : splitTerminalRows(line, width));
+			nextCache.set(line, parts);
+			if (cursorPos && cursorPos.row === i) {
+				const part = Math.min(parts.length - 1, Math.floor(cursorPos.col / width));
+				rowCursorPos = { row: rows.length + part, col: cursorPos.col - part * width };
+			}
+			for (let part = 0; part < parts.length; part++) {
+				rows.push(parts[part]!);
+				continued.push(part > 0);
+			}
+			if (parts.length > 1) wrapped = true;
+		}
+		this.terminalRowsCache = nextCache;
+		this.terminalRowsCacheWidth = width;
+		return wrapped ? { rows, continued, cursorPos: rowCursorPos } : { rows: lines, continued: undefined, cursorPos };
 	}
 
 	protected override beforeTerminalStop(options: TuiStopOptions): void {
@@ -270,9 +317,19 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		}
 
 		// Extract cursor position before applying line resets (marker must be found first)
-		const cursorPos = this.extractCursorPosition(newLines, height);
+		let cursorPos = this.extractCursorPosition(newLines, height);
 
 		newLines = this.applyLineResets(newLines);
+
+		let newContinued: boolean[] | undefined;
+		if (this.getTerminalWrap()) {
+			const split = this.splitWrappedLines(newLines, cursorPos, width);
+			newLines = split.rows;
+			newContinued = split.continued;
+			cursorPos = split.cursorPos;
+		} else if (this.terminalRowsCache.size > 0) {
+			this.terminalRowsCache = new Map();
+		}
 
 		// Helper to clear scrollback and viewport and render all new lines
 		const fullRender = (clear: boolean): void => {
@@ -284,7 +341,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				output.append("\x1b[2J\x1b[H\x1b[3J"); // Clear screen, home, then clear scrollback
 			}
 			for (let i = 0; i < newLines.length; i++) {
-				if (i > 0) output.append("\r\n");
+				if (i > 0 && !newContinued?.[i]) output.append("\r\n");
 				const line = newLines[i];
 				const isImage = isImageLine(line);
 				const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i) : 1;
@@ -314,6 +371,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			this.previousViewportTop = Math.max(0, bufferLength - height);
 			this.positionHardwareCursor(cursorPos, newLines.length);
 			this.previousLines = newLines;
+			this.previousContinued = newContinued;
 			this.previousKittyImageIds = this.collectKittyImageIds(newLines);
 			this.previousWidth = width;
 			this.previousHeight = height;
@@ -368,7 +426,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			const oldLine = i < this.previousLines.length ? this.previousLines[i] : "";
 			const newLine = i < newLines.length ? newLines[i] : "";
 
-			if (oldLine !== newLine) {
+			if (oldLine !== newLine || (this.previousContinued?.[i] ?? false) !== (newContinued?.[i] ?? false)) {
 				if (firstChanged === -1) {
 					firstChanged = i;
 				}
@@ -387,6 +445,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			firstChanged = expandedRange.firstChanged;
 			lastChanged = expandedRange.lastChanged;
 		}
+		// The terminal marks a row as wrapped only when it prints past the row's end, and clearing a row may drop the
+		// mark. So a changed wrapped line is rewritten through its last row, and its rows are overwritten, not cleared.
+		while (lastChanged !== -1 && newContinued?.[lastChanged + 1]) lastChanged++;
 		const appendStart = appendedLines && firstChanged === this.previousLines.length && firstChanged > 0;
 
 		// No changes - but still need to update hardware cursor position if it moved
@@ -440,6 +501,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 			}
 			this.positionHardwareCursor(cursorPos, newLines.length);
 			this.previousLines = newLines;
+			this.previousContinued = newContinued;
 			this.previousKittyImageIds = this.collectKittyImageIds(newLines);
 			this.previousWidth = width;
 			this.previousHeight = height;
@@ -489,7 +551,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		// This reduces flicker when only a single line changes (e.g., spinner animation)
 		const renderEnd = Math.min(lastChanged, newLines.length - 1);
 		for (let i = firstChanged; i <= renderEnd; i++) {
-			if (i > firstChanged) output.append("\r\n");
+			// A row that continues the previous row's line follows it without a line break, so the terminal wraps it.
+			const continuesRow = i > firstChanged && newContinued?.[i] === true;
+			if (i > firstChanged && !continuesRow) output.append("\r\n");
 			const line = newLines[i];
 			const isImage = isImageLine(line);
 			const imageReservedRows = isImage ? this.getKittyImageReservedRows(newLines, i, renderEnd) : 1;
@@ -514,8 +578,10 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				continue;
 			}
 
-			output.append("\x1b[2K"); // Clear current line
-			if (!isImage && visibleWidth(line) > width) {
+			// Clear current line. A row that continues a wrapped line is overwritten instead, see above.
+			if (!newContinued?.[i]) output.append("\x1b[2K");
+			const lineWidth = isImage ? 0 : visibleWidth(line);
+			if (!isImage && lineWidth > width) {
 				// Log all lines to crash file for debugging
 				const crashLogPath = path.join(this.logDirectory ?? os.tmpdir(), "pi-tui-crash.log");
 				const crashData = [
@@ -544,6 +610,9 @@ export class TuiMainScreen extends TuiBase implements TUI {
 				throw new Error(errorMsg);
 			}
 			output.append(line);
+			// Clear what is left of an old wrapped line after a row that does not reach the row's end. A row that does
+			// leaves the cursor on its last column, where clearing would erase the last character.
+			if ((newContinued?.[i] || newContinued?.[i + 1]) && lineWidth < width) output.append("\x1b[K");
 		}
 
 		// Track where cursor ended up after rendering
@@ -611,6 +680,7 @@ export class TuiMainScreen extends TuiBase implements TUI {
 		this.positionHardwareCursor(cursorPos, newLines.length);
 
 		this.previousLines = newLines;
+		this.previousContinued = newContinued;
 		this.previousKittyImageIds = this.collectKittyImageIds(newLines);
 		this.previousWidth = width;
 		this.previousHeight = height;

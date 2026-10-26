@@ -1,3 +1,4 @@
+import { expandTabs } from "@earendil-works/pi-tui";
 import * as Diff from "diff";
 import { theme } from "../theme/theme.ts";
 
@@ -9,13 +10,6 @@ function parseDiffLine(line: string): { prefix: string; lineNum: string; content
 	const match = line.match(/^([+-\s])(\s*\d*)\s(.*)$/);
 	if (!match) return null;
 	return { prefix: match[1], lineNum: match[2], content: match[3] };
-}
-
-/**
- * Replace tabs with spaces for consistent rendering.
- */
-function replaceTabs(text: string): string {
-	return text.replace(/\t/g, "   ");
 }
 
 /**
@@ -117,8 +111,8 @@ export function renderDiff(diffText: string, _options: RenderDiffOptions = {}): 
 				const added = addedLines[0];
 
 				const { removedLine, addedLine } = renderIntraLineDiff(
-					replaceTabs(removed.content),
-					replaceTabs(added.content),
+					expandTabs(removed.content),
+					expandTabs(added.content),
 				);
 
 				result.push(theme.fg("toolDiffRemoved", `-${removed.lineNum} ${removedLine}`));
@@ -126,19 +120,19 @@ export function renderDiff(diffText: string, _options: RenderDiffOptions = {}): 
 			} else {
 				// Show all removed lines first, then all added lines
 				for (const removed of removedLines) {
-					result.push(theme.fg("toolDiffRemoved", `-${removed.lineNum} ${replaceTabs(removed.content)}`));
+					result.push(theme.fg("toolDiffRemoved", `-${removed.lineNum} ${expandTabs(removed.content)}`));
 				}
 				for (const added of addedLines) {
-					result.push(theme.fg("toolDiffAdded", `+${added.lineNum} ${replaceTabs(added.content)}`));
+					result.push(theme.fg("toolDiffAdded", `+${added.lineNum} ${expandTabs(added.content)}`));
 				}
 			}
 		} else if (parsed.prefix === "+") {
 			// Standalone added line
-			result.push(theme.fg("toolDiffAdded", `+${parsed.lineNum} ${replaceTabs(parsed.content)}`));
+			result.push(theme.fg("toolDiffAdded", `+${parsed.lineNum} ${expandTabs(parsed.content)}`));
 			i++;
 		} else {
 			// Context line
-			result.push(theme.fg("toolDiffContext", ` ${parsed.lineNum} ${replaceTabs(parsed.content)}`));
+			result.push(theme.fg("toolDiffContext", ` ${parsed.lineNum} ${expandTabs(parsed.content)}`));
 			i++;
 		}
 	}

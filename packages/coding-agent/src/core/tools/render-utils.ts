@@ -1,7 +1,8 @@
 import * as os from "node:os";
 import { pathToFileURL } from "node:url";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
-import { getCapabilities, getImageDimensions, hyperlink, imageFallback } from "@earendil-works/pi-tui";
+import { expandTabs, getCapabilities, getImageDimensions, hyperlink, imageFallback } from "@earendil-works/pi-tui";
+import { isScreenReaderTerminalWrap } from "../../modes/interactive/accessibility.ts";
 import type { Theme } from "../../modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../../utils/ansi.ts";
 import { resolvePath } from "../../utils/paths.ts";
@@ -48,7 +49,7 @@ export function formatReadLineRange(offset: unknown, limit: unknown): string {
 }
 
 export function replaceTabs(text: string): string {
-	return text.replace(/\t/g, "   ");
+	return expandTabs(text);
 }
 
 export function normalizeDisplayText(text: string): string {
@@ -92,7 +93,8 @@ const COLLAPSED_ARGS_CHARS = 100;
 /**
  * Generic tool call header: the title followed by the arguments. Collapsed, they are `key=value`
  * pairs on the title line, cut to {@link COLLAPSED_ARGS_CHARS}. Expanded, each is a `key: value`
- * line below the title, with strings shown raw and continuation lines indented.
+ * line below the title, with strings shown raw and continuation lines indented. With screen reader terminal
+ * wrapping, the lines are not indented, so values read as the model wrote them.
  */
 export function formatToolCallWithArgs(title: string, args: unknown, theme: Theme, expanded: boolean): string {
 	const header = theme.fg("toolTitle", theme.bold(title));
@@ -103,9 +105,10 @@ export function formatToolCallWithArgs(title: string, args: unknown, theme: Them
 			: ([["args", args]] as [string, unknown][]);
 	if (entries.length === 0) return header;
 	if (expanded) {
+		const [keyIndent, lineIndent] = isScreenReaderTerminalWrap() ? ["", ""] : ["  ", "    "];
 		const lines = entries.map(([key, value]) => {
 			const text = typeof value === "string" ? value : (JSON.stringify(value, null, 2) ?? String(value));
-			return `  ${key}: ${replaceTabs(text).replace(/\r/g, "").split("\n").join("\n    ")}`;
+			return `${keyIndent}${key}: ${replaceTabs(text).replace(/\r/g, "").split("\n").join(`\n${lineIndent}`)}`;
 		});
 		return `${header}\n${theme.fg("muted", lines.join("\n"))}`;
 	}

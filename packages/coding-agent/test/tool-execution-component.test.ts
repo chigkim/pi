@@ -16,7 +16,7 @@ import { type BashOperations, createBashToolDefinition } from "../src/core/tools
 import { createReadTool, createReadToolDefinition } from "../src/core/tools/read.ts";
 import { withBuiltInRenderers } from "../src/core/tools/renderers/index.ts";
 import { createWriteToolDefinition } from "../src/core/tools/write.ts";
-import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
+import { setScreenReaderMode, setScreenReaderTerminalWrap } from "../src/modes/interactive/accessibility.ts";
 import { BashExecutionComponent } from "../src/modes/interactive/components/bash-execution.ts";
 import { ToolExecutionComponent } from "../src/modes/interactive/components/tool-execution.ts";
 import { initTheme, theme } from "../src/modes/interactive/theme/theme.ts";
@@ -53,6 +53,7 @@ describe("ToolExecutionComponent parity", () => {
 		resetCapabilitiesCache();
 		vi.useRealTimers();
 		setScreenReaderMode(undefined);
+		setScreenReaderTerminalWrap(false);
 	});
 
 	// Issue #10292: the component loads the PNG transcoder itself, so this works in any TUI host.
@@ -241,6 +242,35 @@ describe("ToolExecutionComponent parity", () => {
 		const lines = component.render(120).map((line) => stripAnsi(line));
 		expect(lines).not.toContain("");
 		expect(lines.some((line) => line === "Result: done")).toBe(true);
+	});
+
+	test("shows bash output as written with screen reader terminal wrapping", () => {
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+		const output = "  indented first line that is longer than the width\n\tnext\n    last";
+		const component = new ToolExecutionComponent(
+			"bash",
+			"tool-flat-terminal-wrap",
+			{ command: "run a command that is longer than the width" },
+			{},
+			createBashToolDefinition(process.cwd(), { exposeSessionEnvironment: false }),
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.setExpanded(true);
+		component.updateResult({ content: [{ type: "text", text: `\n${output}\n` }], isError: false }, false);
+
+		const lines = component
+			.render(20)
+			.map((line) => stripAnsi(line).trimEnd())
+			.filter((line) => line !== "");
+		// Terminals place tabs at their own tab stops, so a tab becomes 2 spaces in screen reader mode.
+		expect(lines).toEqual([
+			"Tool: $ run a command that is longer than the width",
+			"Result:   indented first line that is longer than the width",
+			"  next",
+			"    last",
+		]);
 	});
 
 	test("labels fallback tool output as a result in screen reader mode", () => {

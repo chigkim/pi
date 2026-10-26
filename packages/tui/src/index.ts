@@ -193,8 +193,12 @@ export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
 export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
 // Utilities
 export {
+	expandTabs,
+	getComponentWrapping,
 	getOsc8LinkAtColumn,
+	setComponentWrapping,
 	sliceByColumn,
+	splitTextWithAnsi,
 	stripTerminalSequences,
 	truncateToWidth,
 	visibleWidth,

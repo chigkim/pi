@@ -409,7 +409,7 @@ export function normalizeTerminalOutput(str: string): string {
 			i += ansi.length;
 			continue;
 		}
-		result += normalized[i] === "\t" ? "   " : normalized[i];
+		result += normalized[i] === "\t" ? (componentWrapping ? "   " : "  ") : normalized[i];
 		i++;
 	}
 	return result;
@@ -920,6 +920,91 @@ export function wrapTextWithAnsi(text: string, width: number): string[] {
 	}
 
 	return result.length > 0 ? result : [""];
+}
+
+let componentWrapping = true;
+
+/**
+ * Sets whether Text, Markdown, and Box fit their content to the render width. When off, text is shown as written:
+ * Text and Markdown do not wrap, Markdown shows its source unrendered, and neither Text, Markdown, nor Box adds a
+ * left margin. Lines may then be wider than the render width, so only renderers with terminal wrapping support it.
+ */
+export function setComponentWrapping(enabled: boolean): void {
+	componentWrapping = enabled;
+}
+
+export function getComponentWrapping(): boolean {
+	return componentWrapping;
+}
+
+/**
+ * Replace tabs with spaces. Terminals place a tab at their own tab stops, so its width is unknown; spaces keep
+ * line widths exact. A tab is 3 spaces, or 2 without component wrapping (screen reader mode).
+ */
+export function expandTabs(text: string): string {
+	return text.includes("\t") ? text.replace(/\t/g, componentWrapping ? "   " : "  ") : text;
+}
+
+/**
+ * Split text at newlines without wrapping. Like {@link wrapTextWithAnsi}, styles active at a newline carry over
+ * to the next line, so each line can be written on its own.
+ */
+export function splitTextWithAnsi(text: string): string[] {
+	if (!text) {
+		return [""];
+	}
+
+	const result: string[] = [];
+	const tracker = new AnsiCodeTracker();
+	for (const inputLine of text.split(/\r\n|\r|\n/)) {
+		result.push(result.length > 0 ? tracker.getActiveCodes() + inputLine : inputLine);
+		updateTrackerFromText(inputLine, tracker);
+	}
+	return result;
+}
+
+/**
+ * Split a line into the rows the terminal shows when it wraps the line at `width` columns. A wide character that
+ * does not fit at the end of a row moves to the next row, as terminals do. Every row but the last ends with a
+ * style reset, and every row but the first starts with the styles active at its start, so each row can be
+ * rewritten on its own.
+ */
+export function splitTerminalRows(line: string, width: number): string[] {
+	if (width <= 0 || visibleWidth(line) <= width) {
+		return [line];
+	}
+
+	const text = normalizeTerminalOutput(line);
+	const rows: string[] = [];
+	const tracker = new AnsiCodeTracker();
+	let row = "";
+	let col = 0;
+	let i = 0;
+	while (i < text.length) {
+		const ansi = extractAnsiCode(text, i);
+		if (ansi) {
+			row += ansi.code;
+			tracker.process(ansi.code);
+			i += ansi.length;
+			continue;
+		}
+
+		let textEnd = text.indexOf("\x1b", i + 1);
+		if (textEnd === -1) textEnd = text.length;
+		for (const { segment } of graphemeSegmenter.segment(text.slice(i, textEnd))) {
+			const w = graphemeWidth(segment);
+			if (w > 0 && col > 0 && col + w > width) {
+				rows.push(`${row}\x1b[0m${tracker.getLineEndReset()}`);
+				row = tracker.getActiveCodes();
+				col = 0;
+			}
+			row += segment;
+			col += w;
+		}
+		i = textEnd;
+	}
+	rows.push(row);
+	return rows;
 }
 
 function wrapSingleLine(line: string, width: number): string[] {

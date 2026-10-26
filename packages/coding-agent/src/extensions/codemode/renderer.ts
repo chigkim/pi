@@ -10,6 +10,7 @@
 import { Container, Spacer, Text } from "@earendil-works/pi-tui";
 import type { ToolDefinition } from "../../core/extensions/types.ts";
 import { getTextOutput, replaceTabs, startToolTimer, str, toolTimerText } from "../../core/tools/render-utils.ts";
+import { trimOutputText } from "../../modes/interactive/accessibility.ts";
 import { keyHint } from "../../modes/interactive/components/keybinding-hints.ts";
 import { VisualLinePreview } from "../../modes/interactive/components/visual-truncate.ts";
 import { highlightCode, type Theme } from "../../modes/interactive/theme/theme.ts";
@@ -122,7 +123,7 @@ export const codemodeRenderers: Pick<
 		const hasHeader = first?.type === "text" && SCRIPT_HEADER.test(first.text);
 		const output = options.isPartial
 			? ""
-			: getTextOutput({ ...result, content: hasHeader ? rest : result.content }, context.showImages).trim();
+			: trimOutputText(getTextOutput({ ...result, content: hasHeader ? rest : result.content }, context.showImages));
 		if (output) {
 			const color = context.isError ? "error" : "toolOutput";
 			const styled = replaceTabs(output)

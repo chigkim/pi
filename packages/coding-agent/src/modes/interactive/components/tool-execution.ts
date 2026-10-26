@@ -17,7 +17,7 @@ export type { ToolRenderers };
 
 import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
 import { ensurePngTranscoder } from "../../../utils/image-convert.ts";
-import { isFlatScreenReaderMode, mergeScreenReaderLabels } from "../accessibility.ts";
+import { isFlatScreenReaderMode, isScreenReaderTerminalWrap, mergeScreenReaderLabels } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { keyHint } from "./keybinding-hints.ts";
 
@@ -261,8 +261,9 @@ export class ToolExecutionComponent extends Container {
 		if (!isFlatScreenReaderMode()) {
 			return lines;
 		}
+		// Padding is off in flat mode, so with terminal wrapping a leading space belongs to the output. Keep it.
 		return mergeScreenReaderLabels(
-			lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)),
+			isScreenReaderTerminalWrap() ? lines : lines.map((line) => (line.startsWith(" ") ? line.slice(1) : line)),
 			["Tool:", "Result:", "Error:"],
 			width,
 		);
