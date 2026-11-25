@@ -143,6 +143,13 @@ import { loadAllHighlightLanguages } from "../../utils/syntax-highlight.ts";
 import { stripBom } from "../../utils/text.ts";
 import { ensureTool, type ToolStatus } from "../../utils/tools-manager.ts";
 import { checkForNewPiVersion, type LatestPiRelease } from "../../utils/version-check.ts";
+import {
+	getHintSeparator,
+	isFlatScreenReaderMode,
+	type ScreenReaderMode,
+	setScreenReaderMode,
+	setScreenReaderTerminalWrap,
+} from "./accessibility.ts";
 import { reportBug } from "./bug-report.ts";
 import { createChatViewport } from "./chat-viewport.ts";
 import { ArminComponent } from "./components/armin.ts";
@@ -307,6 +314,11 @@ function isUsageSessionEntry(item: RenderSessionItem): item is Extract<SessionEn
 // EIO: tty reads/ioctls from an orphaned background process group, or writes after hangup.
 // ENOTTY: the tty was revoked (macOS) and stdin is no longer a terminal.
 const DEAD_TERMINAL_ERROR_CODES = new Set(["EIO", "EPIPE", "ENOTCONN", "ENOTTY"]);
+
+/** Screen reader mode drops transcript padding regardless of the outputPad setting. */
+function resolveOutputPad(padding: number): number {
+	return isFlatScreenReaderMode() ? 0 : padding;
+}
 
 function isDeadTerminalError(error: unknown): boolean {
 	if (!error || typeof error !== "object" || !("code" in error)) {
@@ -495,6 +507,8 @@ export interface InteractiveModeOptions {
 	programResumeToken?: string;
 	/** Restriction and resource flags as typed (`Args.resumeFlags`), repeated in the OSC 7577 resume command. */
 	programResumeFlags?: readonly string[];
+	/** Screen reader mode for reducing decorative TUI output. */
+	screenReader?: ScreenReaderMode;
 }
 
 interface ExtensionChangelogUpdate {
@@ -724,6 +738,7 @@ export class InteractiveMode {
 	}
 
 	constructor(runtimeHost: AgentSessionRuntime, options: InteractiveModeOptions = {}) {
+		setScreenReaderMode(options.screenReader);
 		this.runtimeHost = runtimeHost;
 		setCapabilityOverrides(this.settingsManager.getTerminalCapabilityOverrides());
 		const tuiMode = options.tuiMode ?? this.settingsManager.getTuiMode();
@@ -756,6 +771,8 @@ export class InteractiveMode {
 		});
 		this.ui = createInteractiveTuiReference(() => this.renderer);
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
+		this.ui.setTrimTrailingWhitespace(isFlatScreenReaderMode());
+		this.applyScreenReaderTerminalWrap(this.renderer);
 		this.headerContainer = new Container();
 		this.loadedResourcesContainer = new Container();
 		this.chatContainer = new Container();
@@ -774,7 +791,10 @@ export class InteractiveMode {
 		this.defaultEditor = new CustomEditor(this.ui, getEditorTheme(), this.keybindings, {
 			paddingX: editorPaddingX,
 			autocompleteMaxVisible,
-			embedWorkingStatus: true,
+			// The embedded working status lives in the editor's top border, so it only
+			// works when borders are drawn. Flat screen reader mode shows it separately.
+			embedWorkingStatus: !isFlatScreenReaderMode(),
+			showBorders: !isFlatScreenReaderMode(),
 		});
 		this.editor = this.defaultEditor;
 		this.editorContainer = new Container();
@@ -787,7 +807,7 @@ export class InteractiveMode {
 
 		// Load hide thinking block setting
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
-		this.outputPad = this.settingsManager.getOutputPad();
+		this.outputPad = resolveOutputPad(this.settingsManager.getOutputPad());
 
 		// Register themes from resource loader and initialize
 		setRegisteredThemes(this.session.resourceLoader.getThemes().themes);
@@ -945,6 +965,7 @@ export class InteractiveMode {
 			[...slashCommands, ...templateCommands, ...extensionCommands, ...skillCommandList],
 			this.sessionManager.getCwd(),
 			this.fdPath,
+			{ hintSeparator: getHintSeparator(" — ") },
 		);
 	}
 
@@ -1032,6 +1053,13 @@ export class InteractiveMode {
 		this.ui.stop({ preserveScreen: this.renderer.mode === "fullscreen" });
 	}
 
+	/** Only the main-screen renderer supports terminal wrapping, so fullscreen keeps wrapping text itself. */
+	private applyScreenReaderTerminalWrap(ui: TUI): void {
+		const enabled = isFlatScreenReaderMode() && ui.mode === "regular";
+		setScreenReaderTerminalWrap(enabled);
+		ui.setTerminalWrap(enabled);
+	}
+
 	private switchTuiMode(mode: TuiMode, restoreProgress = true, startRenderer = true): boolean {
 		const previousUi = this.renderer;
 		if (mode === previousUi.mode) return true;
@@ -1062,6 +1090,8 @@ export class InteractiveMode {
 			fullscreenWheelScrollLines: this.settingsManager.getFullscreenWheelScrollLines(),
 		});
 		nextUi.setClearOnShrink(clearOnShrink);
+		nextUi.setTrimTrailingWhitespace(isFlatScreenReaderMode());
+		this.applyScreenReaderTerminalWrap(nextUi);
 		nextUi.onDebug = onDebug;
 		nextUi.setSuspendSignalHandler(() => this.handleCtrlZ());
 		if (nextUi instanceof TuiMainScreen && this.mainScreenRenderState) {
@@ -1153,8 +1183,12 @@ export class InteractiveMode {
 			// Built on demand so the header follows theme changes. The logo's first line carries the version,
 			// its second line the first line of key hints. Terminals that cannot render the logo get a
 			// "Pi vX" line instead, with the key hints below it.
-			const showLogo = supportsPiLogo();
+			const showLogo = supportsPiLogo() && !isFlatScreenReaderMode();
 			const withLogo = (hints: string) => {
+				if (isFlatScreenReaderMode()) {
+					const label = this.options.screenReader ? "\nScreen reader mode" : "";
+					return `${theme.bold(theme.fg("accent", APP_NAME))}${theme.fg("dim", ` v${this.version}`)}${label}\n${hints}`;
+				}
 				if (!showLogo) return `${piWordmark()} ${theme.fg("dim", `v${this.version}`)}\n${hints}`;
 				const [top, bottom] = piLogoLines();
 				return `${top} ${theme.fg("dim", `v${this.version}`)}\n${bottom} ${hints}`;
@@ -1207,7 +1241,7 @@ export class InteractiveMode {
 				() => `${withLogo(compactInstructions())}\n${compactOnboarding()}\n\n${onboarding()}`,
 				() => `${withLogo(expandedInstructions())}\n\n${onboarding()}`,
 				this.getStartupExpansionState(),
-				1,
+				isFlatScreenReaderMode() ? 0 : 1,
 				0,
 			);
 			if (showLogo) header.onLogoClick = (column, row) => playPiLogo3d(this.renderer, column, row);
@@ -2265,7 +2299,7 @@ export class InteractiveMode {
 		this.footer.setAutoCompactEnabled(this.session.autoCompactionEnabled);
 		this.footerDataProvider.setCwd(this.sessionManager.getCwd());
 		this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
-		this.outputPad = this.settingsManager.getOutputPad();
+		this.outputPad = resolveOutputPad(this.settingsManager.getOutputPad());
 		this.ui.setShowHardwareCursor(this.settingsManager.getShowHardwareCursor());
 		const clearOnShrink = this.settingsManager.getClearOnShrink();
 		this.ui.setClearOnShrink(clearOnShrink);
@@ -3053,7 +3087,7 @@ export class InteractiveMode {
 				prefill,
 				(value) => finish(value),
 				() => finish(undefined),
-				undefined,
+				{ showBorders: !isFlatScreenReaderMode() },
 				this.settingsManager.getExternalEditorCommand(),
 			);
 			this.pushExtensionDialog(editor, dialogBlockedStatus("question", title));
@@ -4068,7 +4102,7 @@ export class InteractiveMode {
 
 		const spacer = new Spacer(1);
 		this.lastStatusMessage = message;
-		const text = new ThemedText(() => theme.fg("dim", this.lastStatusMessage), 1, 0);
+		const text = new ThemedText(() => theme.fg("dim", this.lastStatusMessage), isFlatScreenReaderMode() ? 0 : 1, 0);
 		this.chatContainer.addChild(spacer);
 		this.chatContainer.addChild(text);
 		this.lastStatusSpacer = spacer;
@@ -5354,11 +5388,11 @@ export class InteractiveMode {
 					},
 					onOutputPadChange: (padding) => {
 						this.settingsManager.setOutputPad(padding);
-						this.outputPad = padding;
+						this.outputPad = resolveOutputPad(padding);
 						for (const container of [this.chatContainer, this.pendingMessagesContainer]) {
 							for (const child of container.children) {
 								if ("setOutputPad" in child && typeof child.setOutputPad === "function") {
-									child.setOutputPad(padding);
+									child.setOutputPad(this.outputPad);
 								}
 							}
 						}
@@ -6753,7 +6787,7 @@ export class InteractiveMode {
 				return;
 			}
 			this.hideThinkingBlock = this.settingsManager.getHideThinkingBlock();
-			this.outputPad = this.settingsManager.getOutputPad();
+			this.outputPad = resolveOutputPad(this.settingsManager.getOutputPad());
 			this.rebuildChatFromMessages();
 			chatRestoredBeforeSessionStart = true;
 		};
@@ -7256,6 +7290,10 @@ export class InteractiveMode {
 	}
 
 	private handleArminSaysHi(): void {
+		if (isFlatScreenReaderMode()) {
+			this.showStatus("Armin says hi.");
+			return;
+		}
 		if (playArmin3d(this.renderer)) return;
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new ArminComponent(this.ui));
@@ -7263,6 +7301,12 @@ export class InteractiveMode {
 	}
 
 	private handleDementedDelves(): void {
+		if (isFlatScreenReaderMode()) {
+			this.showStatus(
+				"pi has joined Earendil. Read the blog post: https://mariozechner.at/posts/2026-04-08-ive-sold-out/",
+			);
+			return;
+		}
 		this.chatContainer.addChild(new Spacer(1));
 		this.chatContainer.addChild(new EarendilAnnouncementComponent());
 		this.ui.requestRender();

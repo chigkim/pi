@@ -7,6 +7,7 @@
  */
 
 import { Text } from "@earendil-works/pi-tui";
+import { trimOutputText } from "../../../modes/interactive/accessibility.ts";
 import { keyHint } from "../../../modes/interactive/components/keybinding-hints.ts";
 import type { Theme } from "../../../modes/interactive/theme/theme.ts";
 import type { ToolDefinition, ToolRenderResultOptions } from "../../extensions/types.ts";
@@ -32,7 +33,7 @@ function formatLsResult(
 	theme: Theme,
 	showImages: boolean,
 ): string {
-	const output = getTextOutput(result, showImages).trim();
+	const output = trimOutputText(getTextOutput(result, showImages));
 	let text = "";
 	if (output) {
 		const lines = output.split("\n");

@@ -33,6 +33,11 @@ export interface SettingsListTheme {
 
 export interface SettingsListOptions {
 	enableSearch?: boolean;
+	/**
+	 * Separator between hint segments (default: " · "). Screen readers announce
+	 * the middle dot, so accessible renderers pass an ASCII separator instead.
+	 */
+	hintSeparator?: string;
 }
 
 export class SettingsList implements Component {
@@ -47,6 +52,7 @@ export class SettingsList implements Component {
 	private onCancel: () => void;
 	private searchInput?: Input;
 	private searchEnabled: boolean;
+	private hintSeparator: string;
 
 	// Submenu state
 	private submenuComponent: Component | null = null;
@@ -68,6 +74,7 @@ export class SettingsList implements Component {
 		this.onChange = onChange;
 		this.onCancel = onCancel;
 		this.searchEnabled = options.enableSearch ?? false;
+		this.hintSeparator = options.hintSeparator ?? " · ";
 		if (this.searchEnabled) {
 			this.searchInput = new Input();
 		}
@@ -323,13 +330,12 @@ export class SettingsList implements Component {
 	private addHintLine(lines: string[], width: number): void {
 		const kb = getKeybindings();
 		const confirm = [...kb.getKeys("tui.select.confirm"), "space"].join("/");
-		const keysHint = `${confirm} to change · ${kb.getKeys("tui.select.cancel").join("/")} to cancel`;
+		const segments = [
+			...(this.searchEnabled ? ["Type to search"] : []),
+			`${confirm} to change`,
+			`${kb.getKeys("tui.select.cancel").join("/")} to cancel`,
+		];
 		lines.push("");
-		lines.push(
-			truncateToWidth(
-				this.theme.hint(this.searchEnabled ? `  Type to search · ${keysHint}` : `  ${keysHint}`),
-				width,
-			),
-		);
+		lines.push(truncateToWidth(this.theme.hint(`  ${segments.join(this.hintSeparator)}`), width));
 	}
 }

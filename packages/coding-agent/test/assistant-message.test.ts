@@ -1,6 +1,7 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
-import type { TuiMouseEvent } from "@earendil-works/pi-tui";
+import { type TuiMouseEvent, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { setScreenReaderMode, setScreenReaderTerminalWrap } from "../src/modes/interactive/accessibility.ts";
 import { AssistantMessageComponent } from "../src/modes/interactive/components/assistant-message.ts";
 import { UserMessageComponent } from "../src/modes/interactive/components/user-message.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
@@ -35,7 +36,11 @@ function createAssistantMessage(
 }
 
 describe("AssistantMessageComponent", () => {
-	afterEach(() => vi.restoreAllMocks());
+	afterEach(() => {
+		vi.restoreAllMocks();
+		setScreenReaderMode(undefined);
+		setScreenReaderTerminalWrap(false);
+	});
 
 	test("reuses its Markdown across streaming and its end, and renders like a new component after a theme change", () => {
 		initTheme("dark");
@@ -360,5 +365,198 @@ describe("AssistantMessageComponent", () => {
 		const unpaddedComponent = new UserMessageComponent("hello", undefined, 0);
 		const unpaddedLines = unpaddedComponent.render(40).map((line) => stripAnsi(line));
 		expect(unpaddedLines.some((line) => line.startsWith("hello"))).toBe(true);
+	});
+
+	test("trims leading and trailing whitespace in screen reader mode", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "\n  hello  \n" }]),
+		).render(20);
+
+		expect(lines).toEqual([`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}${OSC133_ZONE_START}Assistant: hello`]);
+	});
+
+	test("removes automatic padding from response lines in screen reader mode", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "one two three four five six seven eight nine ten" }]),
+		).render(20);
+
+		expect(lines).toEqual([
+			`${OSC133_ZONE_START}Assistant: one two`,
+			"three",
+			"four",
+			"five six seven eight",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}nine ten`,
+		]);
+	});
+
+	test("keeps merged screen reader assistant label within width for full first response lines", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "alpha beta gamma delta epsilon zeta eta theta iota kappa" }]),
+		).render(30);
+
+		expect(lines).toEqual([
+			`${OSC133_ZONE_START}Assistant: alpha beta gamma`,
+			"delta epsilon",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}zeta eta theta iota kappa`,
+		]);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(30);
+		}
+	});
+
+	test("keeps merged screen reader assistant label within width for styled response lines", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{
+					type: "text",
+					text: "If I had to choose between the two conclusions, I would choose the more cautious **God probably does not exist** conclusion specifically aimed at a traditional personal God who is all-powerful, all-knowing, and perfectly good.",
+				},
+			]),
+		).render(80);
+
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(80);
+		}
+		expect(lines[0]).toContain("Assistant:");
+		expect(lines.join("\n")).toContain("God probably does not exist");
+	});
+
+	test("keeps merged screen reader assistant label within width when more content follows", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "Considering package installation issues" },
+				{ type: "text", text: "I" },
+			]),
+		).render(80);
+
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(80);
+		}
+	});
+
+	test("labels thinking blocks separately from the response in screen reader mode", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "considering options" },
+				{ type: "text", text: "answer" },
+			]),
+		)
+			.render(80)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual(["Thinking: considering options", "", "Assistant: answer"]);
+	});
+
+	test("suppresses empty HTML comment boundaries in screen reader thinking", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "thinking", thinking: "investigating\n\n<!-- -->" }]),
+		)
+			.render(80)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual(["Thinking: investigating"]);
+	});
+
+	test("labels a hidden thinking placeholder in screen reader mode", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "considering options" },
+				{ type: "text", text: "answer" },
+			]),
+			true,
+		)
+			.render(80)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual(["Thinking: Thinking...", "", "Assistant: answer"]);
+	});
+
+	test("does not repeat the assistant label before a thinking-only message", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(createAssistantMessage([{ type: "thinking", thinking: "mulling" }]))
+			.render(80)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual(["Thinking: mulling"]);
+	});
+
+	test("shows model text as written with screen reader terminal wrapping", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+
+		const text =
+			"Only if the text gets smaller on screen. What matters is the size of the text.\n\n- Make the font smaller.\n    - In Windows Terminal, press Ctrl+minus to make the font smaller.";
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([
+				{ type: "thinking", thinking: "\n  indented thought that is longer than the width\n" },
+				{ type: "text", text },
+			]),
+		)
+			.render(20)
+			.map((line) => stripAnsi(line));
+
+		expect(lines).toEqual([
+			"Thinking:   indented thought that is longer than the width",
+			"",
+			"Assistant: Only if the text gets smaller on screen. What matters is the size of the text.",
+			"",
+			"- Make the font smaller.",
+			"    - In Windows Terminal, press Ctrl+minus to make the font smaller.",
+		]);
+	});
+
+	test("shows user text as typed with screen reader terminal wrapping", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+
+		// Text pads short lines to the width. The TUI trims that padding in flat mode.
+		const lines = new UserMessageComponent("a line that is longer than the width\n  indented")
+			.render(20)
+			.map((line) => stripAnsi(line).trimEnd());
+
+		expect(lines.filter((line) => line !== "")).toEqual(["User: a line that is longer than the width", "  indented"]);
+	});
+
+	test("renders screen reader blank lines as empty strings", () => {
+		initTheme("dark");
+		setScreenReaderMode("flat");
+
+		const lines = new AssistantMessageComponent(
+			createAssistantMessage([{ type: "text", text: "first\n\nsecond" }]),
+		).render(40);
+
+		expect(lines).toEqual([
+			`${OSC133_ZONE_START}Assistant: first`,
+			"",
+			`${OSC133_ZONE_END}${OSC133_ZONE_FINAL}second`,
+		]);
 	});
 });

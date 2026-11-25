@@ -1,7 +1,8 @@
 import { setKeybindings } from "@earendil-works/pi-tui";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { KeybindingsManager } from "../src/core/keybindings.ts";
 import type { SessionInfo } from "../src/core/session-manager.ts";
+import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
 import { SessionSelectorComponent } from "../src/modes/interactive/components/session-selector.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 
@@ -36,6 +37,10 @@ describe("session selector rename", () => {
 	beforeEach(() => {
 		// Ensure test isolation: keybindings are a global singleton
 		setKeybindings(new KeybindingsManager());
+	});
+
+	afterEach(() => {
+		setScreenReaderMode(undefined);
 	});
 
 	it("shows rename hint in interactive /resume picker configuration", async () => {
@@ -127,6 +132,29 @@ describe("session selector rename", () => {
 		await flushPromises();
 
 		expect(selector.render(120).join("\n")).toContain("ctrl+s to save");
+	});
+
+	it("uses an ASCII hint separator in screen reader mode", async () => {
+		setScreenReaderMode("flat");
+		const keybindings = new KeybindingsManager();
+		const selector = new SessionSelectorComponent(
+			async () => [makeSession({ id: "a" })],
+			async () => [],
+			() => {},
+			() => {},
+			() => {},
+			() => {},
+			{ renameSession: async () => {}, showRenameHint: true, keybindings },
+		);
+		await flushPromises();
+
+		selector.getSessionList().handleInput(CTRL_R);
+		await flushPromises();
+
+		const hint = selector.render(120).find((line) => line.includes("to save"));
+		expect(hint).toBeDefined();
+		expect(hint).toContain(" - ");
+		expect(hint).not.toContain("·");
 	});
 
 	it("keeps the renamed session selected when the reload starts with another session", async () => {

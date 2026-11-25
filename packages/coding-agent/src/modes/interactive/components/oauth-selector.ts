@@ -11,6 +11,7 @@ import {
 	type TUI,
 } from "@earendil-works/pi-tui";
 import { isPreferredProvider } from "../../../core/preferred-providers.ts";
+import { getHintSeparator, getSelectionPrefix, isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { getProviderBrandStyle, type ProviderBrandStyle, startBrandAnimation } from "./provider-brand.ts";
@@ -48,11 +49,13 @@ export function formatAuthSelectorProviderType(
 /** Themed suffix describing whether and how a login option is configured, for example " ✓ configured". */
 export function formatAuthSelectorProviderStatus(provider: AuthSelectorProvider): string {
 	const { status } = provider;
-	if (!status) return theme.fg("muted", " • not configured");
-	if (status.kind === "unresolved") return theme.fg("muted", " • ") + theme.fg("error", "stored key did not resolve");
+	const separator = getHintSeparator(" • ");
+	if (!status) return theme.fg("muted", `${separator}not configured`);
+	if (status.kind === "unresolved")
+		return theme.fg("muted", separator) + theme.fg("error", "stored key did not resolve");
 	if (status.type !== provider.authType) {
 		const label = `${formatAuthSelectorProviderType(status.type, provider.subscription)} configured`;
-		return theme.fg("muted", " • ") + theme.fg("warning", label);
+		return theme.fg("muted", separator) + theme.fg("warning", label);
 	}
 	if (!status.source || status.source === "OAuth" || status.source === "stored credential") {
 		return theme.fg("success", " ✓ configured");
@@ -145,7 +148,9 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 		// Initial render
 		this.filterProviders(initialSearchInput ?? "");
 
-		if (tui) this.stopAnimation = startBrandAnimation(tui, () => this.getSelectedBrandStyle() !== undefined);
+		// Screen readers would re-read the selected row on every animation frame.
+		if (tui && !isFlatScreenReaderMode())
+			this.stopAnimation = startBrandAnimation(tui, () => this.getSelectedBrandStyle() !== undefined);
 	}
 
 	override render(width: number): readonly string[] {
@@ -195,13 +200,15 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 			const statusIndicator = formatAuthSelectorProviderStatus(provider);
 			// U+2726 is single-width in every terminal, unlike star emoji or ambiguous-width symbols such as U+2605.
-			const partnerMarker = isPreferredProvider(provider.id) ? theme.fg("muted", " ✦") : "";
+			const partnerMarker = isPreferredProvider(provider.id)
+				? theme.fg("muted", isFlatScreenReaderMode() ? " (partner)" : " ✦")
+				: "";
 			const authTypeLabel = this.showAuthTypeLabels
 				? theme.fg("muted", ` [${formatAuthSelectorProviderType(provider.authType, provider.subscription)}]`)
 				: "";
 			let line = "";
 			if (isSelected) {
-				const prefix = theme.fg("accent", "→ ");
+				const prefix = theme.fg("accent", getSelectionPrefix());
 				const brandStyle = this.stopAnimation && getProviderBrandStyle(provider.id);
 				const text = brandStyle
 					? brandStyle(provider.name, performance.now() - this.animationStart)

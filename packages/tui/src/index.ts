@@ -7,6 +7,7 @@ export {
 	type AutocompleteProvider,
 	type AutocompleteSuggestions,
 	CombinedAutocompleteProvider,
+	type CombinedAutocompleteProviderOptions,
 	type SlashCommand,
 } from "./autocomplete.ts";
 // Colors and styling
@@ -50,7 +51,14 @@ export {
 } from "./components/image.ts";
 export { Input } from "./components/input.ts";
 export { Loader, type LoaderIndicatorOptions } from "./components/loader.ts";
-export { type DefaultTextStyle, Markdown, type MarkdownOptions, type MarkdownTheme } from "./components/markdown.ts";
+export {
+	type DefaultTextStyle,
+	getMarkdownAsciiBordersDefault,
+	Markdown,
+	type MarkdownOptions,
+	type MarkdownTheme,
+	setMarkdownAsciiBordersDefault,
+} from "./components/markdown.ts";
 export { MouseRegion, type MouseRegionHandler } from "./components/mouse-region.ts";
 export {
 	ScrollView,
@@ -194,9 +202,13 @@ export { TuiAltScreen, type TuiAltScreenOptions } from "./tui-alt-screen.ts";
 export { TuiMainScreen, type TuiMainScreenRenderState } from "./tui-main-screen.ts";
 // Utilities
 export {
+	expandTabs,
+	getComponentWrapping,
 	getOsc8LinkAtColumn,
 	replaceControlCharacters,
+	setComponentWrapping,
 	sliceByColumn,
+	splitTextWithAnsi,
 	stripTerminalSequences,
 	truncateToWidth,
 	visibleWidth,

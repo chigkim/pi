@@ -26,6 +26,7 @@ import {
 	type TuiMode,
 	type WarningSettings,
 } from "../../../core/settings-manager.ts";
+import { getHintSeparator } from "../accessibility.ts";
 import {
 	getSettingsListTheme,
 	parseAutoThemeSetting,
@@ -210,6 +211,7 @@ class ToggleSettingsSubmenu<K extends string> extends Container {
 			// Item ids are the toggle keys.
 			(id, newValue) => onChange(id as K, newValue === "true"),
 			onCancel,
+			{ hintSeparator: getHintSeparator(" · ") },
 		);
 
 		this.addChild(this.settingsList);
@@ -444,6 +446,7 @@ class ThemeSubmenu extends Container {
 				}
 			},
 			() => this.cancel(),
+			{ hintSeparator: getHintSeparator(" · ") },
 		);
 		content.addChild(settingsList);
 		this.setContent(content, settingsList);
@@ -1026,7 +1029,7 @@ export class SettingsSelectorComponent extends Container {
 				}
 			},
 			callbacks.onCancel,
-			{ enableSearch: true },
+			{ enableSearch: true, hintSeparator: getHintSeparator(" · ") },
 		);
 
 		this.addChild(this.settingsList);

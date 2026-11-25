@@ -1,5 +1,12 @@
 import { join, resolve } from "node:path";
-import { resetCapabilitiesCache, setCapabilities, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
+import {
+	resetCapabilitiesCache,
+	setCapabilities,
+	Text,
+	type TUI,
+	type TuiMouseEvent,
+	visibleWidth,
+} from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
@@ -9,6 +16,8 @@ import { type BashOperations, createBashToolDefinition } from "../src/core/tools
 import { createReadTool, createReadToolDefinition } from "../src/core/tools/read.ts";
 import { withBuiltInRenderers } from "../src/core/tools/renderers/index.ts";
 import { createWriteToolDefinition } from "../src/core/tools/write.ts";
+import { setScreenReaderMode, setScreenReaderTerminalWrap } from "../src/modes/interactive/accessibility.ts";
+import { BashExecutionComponent } from "../src/modes/interactive/components/bash-execution.ts";
 import { ToolExecutionComponent } from "../src/modes/interactive/components/tool-execution.ts";
 import { initTheme, theme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
@@ -43,6 +52,8 @@ describe("ToolExecutionComponent parity", () => {
 	afterEach(() => {
 		resetCapabilitiesCache();
 		vi.useRealTimers();
+		setScreenReaderMode(undefined);
+		setScreenReaderTerminalWrap(false);
 	});
 
 	// Issue #10292: the component loads the PNG transcoder itself, so this works in any TUI host.
@@ -126,6 +137,158 @@ describe("ToolExecutionComponent parity", () => {
 		);
 
 		expect(component.render(120)).toEqual([]);
+	});
+
+	test("keeps flat screen reader tool rows within terminal width", () => {
+		setScreenReaderMode("flat");
+		const toolDefinition: ToolDefinition = {
+			...createBaseToolDefinition(),
+			renderCall: () => new Text("$ ...", 0, 0),
+		};
+
+		const component = new ToolExecutionComponent(
+			"custom_tool",
+			"tool-flat-1",
+			{},
+			{},
+			toolDefinition,
+			createFakeTui(),
+			process.cwd(),
+		);
+		const lines = component.render(120);
+
+		expect(lines.some((line) => stripAnsi(line).includes("Tool: $ ..."))).toBe(true);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(120);
+		}
+	});
+
+	test("keeps flat screen reader bash rows within terminal width", () => {
+		setScreenReaderMode("flat");
+		const component = new BashExecutionComponent("echo hello", createFakeTui());
+		const lines = component.render(120);
+
+		expect(lines.some((line) => stripAnsi(line).includes("Bash: $ echo hello"))).toBe(true);
+		for (const line of lines) {
+			expect(visibleWidth(line)).toBeLessThanOrEqual(120);
+		}
+	});
+
+	test("labels tool results separately from the call in screen reader mode", () => {
+		setScreenReaderMode("flat");
+		const toolDefinition: ToolDefinition = {
+			...createBaseToolDefinition(),
+			renderCall: () => new Text("$ ...", 0, 0),
+			renderResult: () => new Text("done", 0, 0),
+		};
+
+		const component = new ToolExecutionComponent(
+			"custom_tool",
+			"tool-flat-result",
+			{},
+			{},
+			toolDefinition,
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.updateResult({ content: [{ type: "text", text: "done" }], details: {}, isError: false }, false);
+
+		const rendered = stripAnsi(component.render(120).join("\n"));
+		expect(rendered).toContain("Result: done");
+	});
+
+	test("labels errored tool results in screen reader mode", () => {
+		setScreenReaderMode("flat");
+		const toolDefinition: ToolDefinition = {
+			...createBaseToolDefinition(),
+			renderCall: () => new Text("$ ...", 0, 0),
+			renderResult: () => new Text("boom", 0, 0),
+		};
+
+		const component = new ToolExecutionComponent(
+			"custom_tool",
+			"tool-flat-error",
+			{},
+			{},
+			toolDefinition,
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.updateResult({ content: [{ type: "text", text: "boom" }], details: {}, isError: true }, false);
+
+		const rendered = stripAnsi(component.render(120).join("\n"));
+		expect(rendered).toContain("Error: boom");
+	});
+
+	test("does not leave a blank line between the Result label and a renderer that starts with its own blank line", () => {
+		setScreenReaderMode("flat");
+		const toolDefinition: ToolDefinition = {
+			...createBaseToolDefinition(),
+			renderCall: () => new Text("$ ...", 0, 0),
+			renderResult: () => new Text("\ndone", 0, 0),
+		};
+
+		const component = new ToolExecutionComponent(
+			"custom_tool",
+			"tool-flat-result-leading-blank",
+			{},
+			{},
+			toolDefinition,
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.updateResult({ content: [{ type: "text", text: "done" }], details: {}, isError: false }, false);
+
+		const lines = component.render(120).map((line) => stripAnsi(line));
+		expect(lines).not.toContain("");
+		expect(lines.some((line) => line === "Result: done")).toBe(true);
+	});
+
+	test("shows bash output as written with screen reader terminal wrapping", () => {
+		setScreenReaderMode("flat");
+		setScreenReaderTerminalWrap(true);
+		const output = "  indented first line that is longer than the width\n\tnext\n    last";
+		const component = new ToolExecutionComponent(
+			"bash",
+			"tool-flat-terminal-wrap",
+			{ command: "run a command that is longer than the width" },
+			{},
+			createBashToolDefinition(process.cwd(), { exposeSessionEnvironment: false }),
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.setExpanded(true);
+		component.updateResult({ content: [{ type: "text", text: `\n${output}\n` }], isError: false }, false);
+
+		const lines = component
+			.render(20)
+			.map((line) => stripAnsi(line).trimEnd())
+			.filter((line) => line !== "");
+		// Terminals place tabs at their own tab stops, so a tab becomes 2 spaces in screen reader mode.
+		expect(lines).toEqual([
+			"Tool: $ run a command that is longer than the width",
+			"Result:   indented first line that is longer than the width",
+			"  next",
+			"    last",
+		]);
+	});
+
+	test("labels fallback tool output as a result in screen reader mode", () => {
+		setScreenReaderMode("flat");
+		const component = new ToolExecutionComponent(
+			"unknown_tool",
+			"tool-flat-fallback-result",
+			{},
+			{},
+			undefined,
+			createFakeTui(),
+			process.cwd(),
+		);
+		component.updateResult({ content: [{ type: "text", text: "plain output" }], details: {}, isError: false }, false);
+
+		const rendered = stripAnsi(component.render(120).join("\n"));
+		expect(rendered).toContain("Result:");
+		expect(rendered).toContain("plain output");
 	});
 
 	test("uses built-in rendering for built-in overrides without custom renderers", () => {

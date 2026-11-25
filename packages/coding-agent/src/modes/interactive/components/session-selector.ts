@@ -15,6 +15,7 @@ import {
 import { KeybindingsManager } from "../../../core/keybindings.ts";
 import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
 import { canonicalizePath, getPathComparisonKey, shortenHomePath } from "../../../utils/paths.ts";
+import { getHintSeparator, getSelectionPrefix, isFlatScreenReaderMode } from "../accessibility.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
 import { keyHint, keyText } from "./keybinding-hints.ts";
@@ -487,7 +488,7 @@ class SessionList implements Component, Focusable {
 			}
 
 			// Cursor
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+			const cursor = isSelected ? theme.fg("accent", getSelectionPrefix("› ")) : "  ";
 
 			// Calculate available width for message
 			const prefixWidth = visibleWidth(prefix);
@@ -536,6 +537,10 @@ class SessionList implements Component, Focusable {
 	private buildTreePrefix(node: FlatSessionNode): string {
 		if (node.depth === 0) {
 			return "";
+		}
+
+		if (isFlatScreenReaderMode()) {
+			return " ".repeat(node.depth * 2);
 		}
 
 		const parts = node.ancestorContinues.map((continues) => (continues ? "│  " : "   "));
@@ -919,7 +924,10 @@ export class SessionSelectorComponent extends Container implements Focusable {
 		panel.addChild(new Spacer(1));
 		panel.addChild(
 			new Text(
-				theme.fg("muted", `${keyText("tui.input.submit")} to save · ${keyText("tui.select.cancel")} to cancel`),
+				theme.fg(
+					"muted",
+					`${keyText("tui.input.submit")} to save${getHintSeparator(" · ")}${keyText("tui.select.cancel")} to cancel`,
+				),
 				1,
 				0,
 			),

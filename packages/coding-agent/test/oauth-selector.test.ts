@@ -1,6 +1,7 @@
 import { setKeybindings, type TUI } from "@earendil-works/pi-tui";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { KeybindingsManager } from "../src/core/keybindings.ts";
+import { setScreenReaderMode } from "../src/modes/interactive/accessibility.ts";
 import {
 	type AuthSelectorProvider,
 	OAuthSelectorComponent,
@@ -16,6 +17,10 @@ describe("OAuthSelectorComponent", () => {
 
 	beforeEach(() => {
 		setKeybindings(new KeybindingsManager());
+	});
+
+	afterEach(() => {
+		setScreenReaderMode(undefined);
 	});
 
 	it("projects provider-owned auth options without provider-specific filtering", () => {
@@ -115,6 +120,31 @@ describe("OAuthSelectorComponent", () => {
 		const output = stripAnsi(selector.render(120).join("\n"));
 		expect(output).toContain("DeepSeek • stored key did not resolve");
 		expect(output).not.toContain("not configured");
+	});
+
+	it("uses ASCII status separators in screen reader mode", () => {
+		setScreenReaderMode("flat");
+		const selector = new OAuthSelectorComponent(
+			"login",
+			[
+				{ id: "google", name: "Google", authType: "api_key" },
+				{ id: "deepseek", name: "DeepSeek", authType: "api_key", status: { kind: "unresolved" } },
+				{
+					id: "anthropic",
+					name: "Anthropic",
+					authType: "api_key",
+					status: { kind: "configured", type: "oauth", source: "OAuth" },
+				},
+			],
+			() => {},
+			() => {},
+		);
+
+		const output = stripAnsi(selector.render(120).join("\n"));
+		expect(output).toContain("Google - not configured");
+		expect(output).toContain("DeepSeek - stored key did not resolve");
+		expect(output).toContain("Anthropic - subscription configured");
+		expect(output).not.toContain("•");
 	});
 
 	it("shows OAuth auth distinctly in the API key selector", () => {
